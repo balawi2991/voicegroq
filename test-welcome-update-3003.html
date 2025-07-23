@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار تحديث رسالة الترحيب - المنفذ 3003</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .instructions {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 5px solid #4ade80;
+        }
+        .test-buttons {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            color: white;
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+        }
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        #console-output {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            border: 2px solid #333;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.success {
+            background: rgba(74, 222, 128, 0.2);
+            border: 1px solid #4ade80;
+        }
+        .status.error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+        }
+        .status.info {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 اختبار تحديث رسالة الترحيب المحسن</h1>
+        
+        <div class="instructions">
+            <h3>📋 تعليمات الاختبار:</h3>
+            <ol>
+                <li>افتح لوحة التحكم وغير رسالة الترحيب</li>
+                <li>اضغط على "اختبار تحديث الرسالة" لرؤية التحديث الفوري</li>
+                <li>راقب وحدة التحكم أدناه لمتابعة عملية التحديث</li>
+                <li>لاحظ أن الطلبات أصبحت أقل تكراراً وأكثر ذكاءً</li>
+            </ol>
+        </div>
+        
+        <div class="test-buttons">
+            <button class="btn-primary" onclick="testMessageUpdate()">🔄 اختبار تحديث الرسالة</button>
+            <button class="btn-secondary" onclick="playWelcomeMessage()">🎵 تشغيل رسالة الترحيب</button>
+            <button class="btn-warning" onclick="clearConsole()">🗑️ مسح وحدة التحكم</button>
+        </div>
+        
+        <div id="status-area"></div>
+        
+        <h3>📊 مخرجات وحدة التحكم:</h3>
+        <div id="console-output">جاري تحميل البوت...
+</div>
+    </div>
+
+    <!-- تضمين البوت -->
+    <script src="http://localhost:3003/embed.js" data-agent-id="test-agent"></script>
+    
+    <script>
+        const consoleOutput = document.getElementById('console-output');
+        const statusArea = document.getElementById('status-area');
+        
+        // اعتراض console.log لعرضه في الصفحة
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+        
+        function addToConsole(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString('ar-SA');
+            const prefix = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '📝';
+            consoleOutput.textContent += `[${timestamp}] ${prefix} ${message}
+`;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsole(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsole(args.join(' '), 'error');
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToConsole(args.join(' '), 'warn');
+        };
+        
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+            statusArea.appendChild(statusDiv);
+            
+            setTimeout(() => {
+                statusDiv.remove();
+            }, 5000);
+        }
+        
+        function testMessageUpdate() {
+            showStatus('🔄 بدء اختبار تحديث الرسالة...', 'info');
+            console.log('🧪 === بدء اختبار تحديث الرسالة ===');
+            
+            if (window.SanadBot) {
+                window.SanadBot.updateBotConfig().then(() => {
+                    showStatus('✅ تم اختبار التحديث بنجاح', 'success');
+                    console.log('✅ تم الانتهاء من اختبار التحديث');
+                }).catch(error => {
+                    showStatus('❌ خطأ في اختبار التحديث', 'error');
+                    console.error('❌ خطأ في اختبار التحديث:', error);
+                });
+            } else {
+                showStatus('❌ البوت غير محمل بعد', 'error');
+                console.error('❌ البوت غير محمل بعد');
+            }
+        }
+        
+        function playWelcomeMessage() {
+            showStatus('🎵 بدء تشغيل رسالة الترحيب...', 'info');
+            console.log('🎵 === بدء تشغيل رسالة الترحيب ===');
+            
+            if (window.SanadBot) {
+                window.SanadBot.playWelcomeMessage().then(() => {
+                    showStatus('✅ تم تشغيل رسالة الترحيب', 'success');
+                }).catch(error => {
+                    showStatus('❌ خطأ في تشغيل رسالة الترحيب', 'error');
+                    console.error('❌ خطأ في تشغيل رسالة الترحيب:', error);
+                });
+            } else {
+                showStatus('❌ البوت غير محمل بعد', 'error');
+                console.error('❌ البوت غير محمل بعد');
+            }
+        }
+        
+        function clearConsole() {
+            consoleOutput.textContent = 'تم مسح وحدة التحكم...
+';
+            statusArea.innerHTML = '';
+            console.log('🗑️ تم مسح وحدة التحكم');
+        }
+        
+        // رسالة ترحيب
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                console.log('🚀 تم تحميل صفحة الاختبار المحسنة - المنفذ 3003');
+                console.log('💡 الآن يمكنك اختبار التحديثات المحسنة للتكوين');
+                showStatus('✅ تم تحميل صفحة الاختبار بنجاح', 'success');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
