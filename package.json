@@ -18,7 +18,6 @@
     "update-embed": "node scripts/update-version.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.52.0",
     "@types/uuid": "^10.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -26,6 +25,7 @@
     "framer-motion": "^12.23.6",
     "lucide-react": "^0.525.0",
     "next": "15.4.2",
+    "pg": "^8.16.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "tailwind-merge": "^3.3.1",
@@ -34,7 +34,8 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^20.19.9",
+    "@types/pg": "^8.15.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

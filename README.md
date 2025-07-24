@@ -3,11 +3,11 @@
 مساعد ذكي صوتي متقدم يتكامل مع موقعك بسهولة، مبني بتقنيات حديثة ومصمم خصيصاً للمحتوى العربي.
 
 ## 🎵 **آخر التحديثات**
-- ✅ **تم دمج Speechify TTS** - خدمة TTS متقدمة مع جودة عالية
-- ✅ **نظام TTS مرن** - إمكانية التبديل بين OpenAI و Speechify
-- ✅ **إيقاف OpenAI مؤقتاً** - تجنب مشاكل الحصة اليومية
+- ✅ **تنظيف شامل للمشروع** - إزالة الملفات التجريبية والمكررة
+- ✅ **تحسين بنية المشروع** - تنظيم أفضل للملفات والمجلدات
 - ✅ **تحديث فوري للتخصيصات** - التغييرات تنعكس خلال ثوان
 - ✅ **نظام إصدارات متقدم** - تحديثات تلقائية للبوت المضمن
+- ✅ **إزالة الصفحات التجريبية** - مشروع نظيف وجاهز للإنتاج
 
 ## ✨ المميزات
 
@@ -49,7 +49,7 @@
 ### AI & Voice Processing
 - **Gladia API** - تحويل الصوت إلى نص
 - **Google Gemini LLM** - معالجة اللغة الطبيعية والذكاء الاصطناعي
-- **Speechify TTS** - تحويل النص إلى صوت بجودة عالية (نشط حالياً)
+- **Groq TTS** - تحويل النص إلى صوت بجودة عالية باستخدام playai-tts-arabic (نشط حالياً)
 - **OpenAI TTS (tts-1-hd)** - تحويل النص إلى صوت فائق الجودة (معطل مؤقتاً)
 
 ## 🚀 التثبيت والإعداد
@@ -83,8 +83,8 @@ GLADIA_API_KEY=your_gladia_key
 # AI & TTS
 # OpenAI TTS (currently disabled - can be enabled later)
 OPENAI_API_KEY=your_openai_key
-# Speechify TTS (currently active)
-SPEECHIFY_API_KEY=your_speechify_api_key
+# Groq TTS (currently active)
+GROQ_API_KEY=your_groq_api_key
 ```
 
 ### 4. تشغيل المشروع
@@ -130,16 +130,17 @@ npm run dev
 - `/` - الصفحة الرئيسية
 - `/login` - تسجيل الدخول
 - `/signup` - إنشاء حساب
+- `/dev` - مختبر التطوير (للمطورين)
 
 ### لوحة التحكم
-- `/dashboard` - نظرة عامة
-- `/dashboard/appearance` - تخصيص المظهر
-- `/dashboard/knowledge` - إدارة المعرفة
+- `/dashboard` - نظرة عامة وإحصائيات
+- `/dashboard/appearance` - تخصيص المظهر والصوت
+- `/dashboard/knowledge` - إدارة المعرفة والملفات
 - `/dashboard/faq` - الأسئلة الشائعة
-- `/dashboard/conversations` - المحادثات
+- `/dashboard/conversations` - سجل المحادثات
 
 ### التضمين
-- `/embed/[agentId]` - صفحة التضمين
+- `/embed/[agentId]` - صفحة التضمين للمواقع الخارجية
 
 ---
 

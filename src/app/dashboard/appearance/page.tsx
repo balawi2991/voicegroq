@@ -59,10 +59,11 @@ function AppearanceContent() {
   }, [user?.agentId]);
 
   const updateConfig = (updates: Partial<typeof config>) => {
-    setConfig(prev => ({ ...prev, ...updates }));
+    const newConfig = { ...config, ...updates };
+    setConfig(newConfig);
     // الحفظ التلقائي لكل شيء عدا رسالة الترحيب
     if (!updates.hasOwnProperty('welcomeMessage')) {
-      autoSave();
+      autoSaveWithConfig(newConfig);
     }
   };
 
@@ -130,6 +131,74 @@ function AppearanceContent() {
     } catch (err) {
       setSaveMessage('فشل في حفظ رسالة الترحيب');
       console.error('Error saving welcome message:', err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const autoSaveWithConfig = async (configToSave: typeof config) => {
+    if (!user?.agentId) return;
+
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/bot/config/${user.agentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: configToSave.name,
+          avatar_emoji: configToSave.avatarEmoji,
+          voice_id: configToSave.voiceId,
+          avatar_url: configToSave.avatarUrl,
+          welcome_message: configToSave.welcomeMessage,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('تم حفظ إعدادات البوت تلقائياً، سيتم توليد الصوت عند الحاجة باستخدام Simba Multilingual API');
+
+        setSaveMessage('تم الحفظ تلقائياً');
+        setTimeout(() => setSaveMessage(''), 2000);
+
+        // إشعار embed.js بالتحديث
+        try {
+          localStorage.setItem(`bot_config_${user.agentId}`, JSON.stringify({
+            name: configToSave.name,
+            avatarEmoji: configToSave.avatarEmoji,
+            voiceId: configToSave.voiceId,
+            avatarUrl: configToSave.avatarUrl,
+            welcomeMessage: configToSave.welcomeMessage,
+            timestamp: Date.now()
+          }));
+          
+          localStorage.setItem('config_updated', Date.now().toString());
+          
+          window.dispatchEvent(new CustomEvent('botConfigUpdate', {
+            detail: {
+              agentId: user.agentId,
+              config: {
+                name: configToSave.name,
+                avatarEmoji: configToSave.avatarEmoji,
+                voiceId: configToSave.voiceId,
+                welcomeMessage: configToSave.welcomeMessage
+              },
+              timestamp: Date.now()
+            }
+          }));
+          
+          console.log('🔔 Auto-save embed notification sent via multiple channels');
+        } catch (e) {
+          console.log('Could not update localStorage for embed notification:', e);
+        }
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (err) {
+      setSaveMessage('فشل في الحفظ');
+      console.error('Error saving config:', err);
     } finally {
       setIsSaving(false);
     }

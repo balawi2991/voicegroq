@@ -10,6 +10,7 @@ export interface StreamingTTSOptions {
   onProgress?: (progress: number) => void;
   onError?: (error: Error) => void;
   onComplete?: () => void;
+  onAudioStart?: () => void;
 }
 
 export interface StreamingAudioPlayer {
@@ -51,7 +52,7 @@ export class StreamingTTSPlayer {
    * تشغيل النص كصوت متدفق
    */
   async streamTextToSpeech(options: StreamingTTSOptions): Promise<void> {
-    const { text, voiceId, onChunkReceived, onProgress, onError, onComplete } = options;
+    const { text, voiceId, onChunkReceived, onProgress, onError, onComplete, onAudioStart } = options;
 
     try {
       const response = await fetch('/api/voice/text-to-speech/stream', {
@@ -102,7 +103,7 @@ export class StreamingTTSPlayer {
       }
 
       // تشغيل الصوت
-      await this.playAudioData(audioData);
+      await this.playAudioData(audioData, onAudioStart);
       
       onProgress?.(1.0);
       onComplete?.();
@@ -117,7 +118,7 @@ export class StreamingTTSPlayer {
   /**
    * تشغيل البيانات الصوتية
    */
-  private async playAudioData(audioData: Uint8Array): Promise<void> {
+  private async playAudioData(audioData: Uint8Array, onAudioStart?: () => void): Promise<void> {
     if (!this.audioContext) {
       throw new Error('AudioContext غير متاح');
     }
@@ -146,6 +147,9 @@ export class StreamingTTSPlayer {
         this.sourceNode = sourceNode;
         this.isPlaying = true;
         this.startTime = this.audioContext!.currentTime;
+        
+        // استدعاء callback عند بدء التشغيل الفعلي
+        onAudioStart?.();
         
         sourceNode.start();
       });
@@ -193,7 +197,8 @@ export class StreamingTTSPlayer {
 export async function playStreamingTTS(
   text: string, 
   voiceId: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  onAudioStart?: () => void
 ): Promise<void> {
   const player = new StreamingTTSPlayer();
   
@@ -202,6 +207,7 @@ export async function playStreamingTTS(
       text,
       voiceId,
       onProgress,
+      onAudioStart,
       onError: (error) => {
         console.error('خطأ في تشغيل الصوت المتدفق:', error);
       }

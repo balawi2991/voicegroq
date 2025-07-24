@@ -16,8 +16,7 @@ import {
   LogOut,
   Menu,
   X,
-  Sparkles,
-  TestTube
+  Sparkles
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -58,12 +57,7 @@ const sidebarItems = [
     label: 'المحادثات',
     description: 'سجل التفاعلات'
   },
-  {
-    href: '/dev',
-    icon: TestTube,
-    label: 'مختبر التطوير',
-    description: 'اختبار البوت'
-  },
+
 ];
 
 function DashboardContent({ children }: DashboardLayoutProps) {

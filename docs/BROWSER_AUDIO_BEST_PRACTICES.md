@@ -364,9 +364,9 @@ class ErrorHandler {
 ```typescript
 // في الـ backend فقط
 const config = {
-  speechify: {
-    apiKey: process.env.SPEECHIFY_API_KEY,
-    baseURL: 'https://api.sws.speechify.com/v1'
+  groq: {
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: 'https://api.groq.com/openai/v1'
   },
   openai: {
     apiKey: process.env.OPENAI_API_KEY,
@@ -375,8 +375,8 @@ const config = {
 };
 
 // التحقق من وجود المفاتيح
-if (!config.speechify.apiKey) {
-  throw new Error('SPEECHIFY_API_KEY is required');
+if (!config.groq.apiKey) {
+  throw new Error('GROQ_API_KEY is required');
 }
 ```
 

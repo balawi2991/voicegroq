@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { database } from '@/lib/supabase';
+import { database } from '@/lib/db';
 
 // CORS headers
 const corsHeaders = {
@@ -51,11 +51,14 @@ async function speechToText(audioBlob: Blob): Promise<string> {
   }
 }
 
-async function processWithAI(text: string, agentId: string): Promise<string> {
+async function processWithAI(text: string, agentId: string, sessionId: string): Promise<string> {
   try {
     // جلب المعرفة والأسئلة الشائعة
     const { data: faqs } = await database.faqs.getByAgentId(agentId);
     const { data: knowledge } = await database.knowledgeFiles.getByAgentId(agentId);
+    
+    // جلب الرسائل السابقة للجلسة الحالية
+    const { data: previousMessages } = await database.conversations.getMessagesBySessionId(sessionId);
 
     // البحث في الأسئلة الشائعة أولاً
     const activeFaqs = faqs?.filter(faq => faq.is_active) || [];
@@ -70,8 +73,13 @@ async function processWithAI(text: string, agentId: string): Promise<string> {
 
     // إعداد السياق من المعرفة
     const knowledgeContext = knowledge?.map(k => k.content).join('\n\n') || '';
+    
+    // إعداد سياق المحادثة السابقة
+    const conversationHistory = previousMessages?.map(msg => 
+      `${msg.role === 'user' ? 'المستخدم' : 'المساعد'}: ${msg.text}`
+    ).join('\n') || '';
 
-    // إعداد prompt لـ Gemini
+    // إعداد prompt لـ Gemini مع السياق الكامل
     const prompt = `
 أنت مساعد ذكي مفيد. استخدم المعلومات التالية للإجابة على السؤال:
 
@@ -81,13 +89,15 @@ ${knowledgeContext}
 الأسئلة الشائعة:
 ${activeFaqs.map(faq => `س: ${faq.question}\nج: ${faq.answer}`).join('\n\n')}
 
-السؤال: ${text}
+${conversationHistory ? `سياق المحادثة السابقة:\n${conversationHistory}\n\n` : ''}السؤال الحالي: ${text}
 
 تعليمات:
 - أجب باللغة العربية
 - كن مفيداً ومهذباً
+- استخدم سياق المحادثة السابقة لفهم السؤال بشكل أفضل
 - إذا لم تجد إجابة في المعرفة المتاحة، قل ذلك بوضوح
 - اجعل إجابتك مختصرة ومفيدة
+- إذا كان السؤال يتطلب معلومات من المحادثة السابقة، استخدمها في إجابتك
 `;
 
     // استدعاء Gemini API
@@ -136,7 +146,7 @@ ${activeFaqs.map(faq => `س: ${faq.question}\nج: ${faq.answer}`).join('\n\n')}
 
 async function textToSpeech(text: string, voiceId: string, agentId: string): Promise<string> {
   try {
-    // استخدام Speechify Streaming TTS API
+    // استخدام Groq Streaming TTS API
     const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/voice/text-to-speech/stream`, {
       method: 'POST',
       headers: {
@@ -146,7 +156,7 @@ async function textToSpeech(text: string, voiceId: string, agentId: string): Pro
     });
 
     if (!response.ok) {
-      console.warn('Speechify Streaming failed, falling back to regular TTS');
+      console.warn('Groq Streaming failed, falling back to regular TTS');
       // Fallback to regular TTS API
       const fallbackResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/voice/text-to-speech`, {
         method: 'POST',
@@ -239,10 +249,10 @@ export async function POST(request: NextRequest) {
     const audioBlob = new Blob([await audioFile.arrayBuffer()]);
     const userText = await speechToText(audioBlob);
 
-    // 2. معالجة النص بالذكاء الاصطناعي
-    const botResponse = await processWithAI(userText, agentId);
+    // 2. معالجة النص بالذكاء الاصطناعي مع السياق السابق
+    const botResponse = await processWithAI(userText, agentId, sessionId);
 
-    // 3. تحويل الرد إلى صوت باستخدام Speechify Streaming
+    // 3. تحويل الرد إلى صوت باستخدام Groq Streaming
     const audioUrl = await textToSpeech(botResponse, config.voice_id, agentId);
 
     // 4. حفظ الرسائل في قاعدة البيانات
@@ -257,6 +267,12 @@ export async function POST(request: NextRequest) {
       role: 'bot',
       text: botResponse,
     });
+
+    // تحديث عداد الرسائل في جدول المحادثات
+    const { data: currentMessages } = await database.conversations.getMessagesBySessionId(sessionId);
+    const messageCount = currentMessages?.length || 0;
+    
+    await database.conversations.updateMessageCount(sessionId, messageCount);
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase, database } from '@/lib/supabase';
+import { database } from '@/lib/db';
 
 // CORS headers
 const corsHeaders = {
@@ -41,14 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     // تحديث الجلسة في قاعدة البيانات
-    const { data, error } = await supabase
-      .from('conversations')
-      .update({
-        ended_at: new Date().toISOString()
-      })
-      .eq('session_id', sessionId)
-      .select()
-      .single();
+    const { data, error } = await database.conversations.endSession(sessionId);
 
     if (error) {
       console.error('Error ending conversation session:', error);
@@ -67,7 +60,7 @@ export async function POST(request: NextRequest) {
     // إرجاع نجاح العملية
     return NextResponse.json({
       success: true,
-      data: { sessionId, endedAt: data.ended_at }
+      data: { sessionId, endedAt: data?.ended_at }
     }, {
       headers: {
         ...corsHeaders,

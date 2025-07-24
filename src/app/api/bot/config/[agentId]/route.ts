@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { database } from '@/lib/supabase';
+import { database } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
@@ -30,10 +30,13 @@ export async function GET(
       // إنشاء تكوين افتراضي إذا لم يوجد
       const defaultConfig = {
         agent_id: agentId,
-        name: 'مساعد ذكي',
-        avatar_emoji: '🤖',
+        bot_name: 'مساعد ذكي',
+        welcome_message: 'مرحباً! كيف يمكنني مساعدتك اليوم؟',
+        primary_color: '#3B82F6',
+        secondary_color: '#1E40AF',
         voice_id: 'ar-male-1',
-        is_active: true,
+        avatar_url: null,
+        avatar_emoji: '🤖',
       };
 
       const { data: newConfig, error: createError } = await database.botConfigs.upsert(defaultConfig);
@@ -46,9 +49,19 @@ export async function GET(
         );
       }
 
-      const response = NextResponse.json({
+      // تحويل أسماء الحقول للواجهة الأمامية
+    const frontendConfig = {
+      ...newConfig,
+      name: newConfig.bot_name,
+      avatar_emoji: newConfig.avatar_emoji,
+      voice_id: newConfig.voice_id,
+      welcome_message: newConfig.welcome_message,
+      avatar_url: newConfig.avatar_url
+    };
+    
+    const response = NextResponse.json({
       success: true,
-      data: newConfig
+      data: frontendConfig
     });
     
     // إضافة headers للـ CORS وترميز UTF-8
@@ -65,9 +78,19 @@ export async function GET(
     return response;
     }
 
+    // تحويل أسماء الحقول للواجهة الأمامية
+    const frontendConfig = {
+      ...config,
+      name: config.bot_name,
+      avatar_emoji: config.avatar_emoji,
+      voice_id: config.voice_id,
+      welcome_message: config.welcome_message,
+      avatar_url: config.avatar_url
+    };
+    
     const response = NextResponse.json({
       success: true,
-      data: config
+      data: frontendConfig
     });
     
     // إضافة headers للـ CORS وترميز UTF-8
@@ -107,17 +130,21 @@ export async function PUT(
       );
     }
 
+    console.log('Received body:', JSON.stringify(body, null, 2));
+    
     // تحديث تكوين البوت
     const updateData = {
       agent_id: agentId,
-      name: body.name,
+      bot_name: body.name || 'مساعد ذكي',
+      welcome_message: body.welcome_message || '',
+      primary_color: body.primary_color || '#3B82F6',
+      secondary_color: body.secondary_color || '#1E40AF',
+      voice_id: body.voice_id || 'ar-male-1',
+      avatar_url: body.avatar_url || null,
       avatar_emoji: body.avatar_emoji || '🤖',
-      voice_id: body.voice_id,
-      avatar_url: body.avatar_url,
-      welcome_message: body.welcome_message,
-      is_active: body.is_active !== undefined ? body.is_active : true,
-      updated_at: new Date().toISOString(),
     };
+    
+    console.log('Update data:', JSON.stringify(updateData, null, 2));
 
     const { data: config, error } = await database.botConfigs.upsert(updateData);
 
@@ -129,9 +156,19 @@ export async function PUT(
       );
     }
 
+    // تحويل أسماء الحقول للواجهة الأمامية
+    const frontendConfig = {
+      ...config,
+      name: config.bot_name,
+      avatar_emoji: config.avatar_emoji,
+      voice_id: config.voice_id,
+      welcome_message: config.welcome_message,
+      avatar_url: config.avatar_url
+    };
+    
     const response = NextResponse.json({
       success: true,
-      data: config
+      data: frontendConfig
     });
     
     // إضافة headers للـ CORS وترميز UTF-8

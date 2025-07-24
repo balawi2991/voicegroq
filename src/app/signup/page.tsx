@@ -6,8 +6,10 @@ import { SpaceBackground } from '@/components/space/StarField';
 import { GlowButton } from '@/components/space/GlowButton';
 import { Mail, Lock, Eye, EyeOff, UserPlus, User } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function SignupPage() {
+  const { signUp } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -46,46 +48,14 @@ export default function SignupPage() {
     }
 
     try {
-      const { auth, supabase } = await import('@/lib/supabase');
-
-      // إنشاء حساب في Supabase Auth
-      const { data, error } = await auth.signUp(formData.email, formData.password);
+      // إنشاء حساب جديد
+      const { user, error } = await signUp(formData.email, formData.password, formData.name);
 
       if (error) {
-        throw new Error(error.message);
+        throw new Error(error);
       }
 
-      if (data.user) {
-        // إنشاء agent_id فريد
-        const agentId = `agent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        // إنشاء سجل المستخدم في قاعدة البيانات
-        const { error: userError } = await supabase
-          .from('users')
-          .insert({
-            email: formData.email,
-            agent_id: agentId,
-            full_name: formData.name,
-          });
-
-        if (userError) {
-          console.error('Error creating user record:', userError);
-        }
-
-        // إنشاء تكوين افتراضي للبوت
-        const { error: configError } = await supabase
-          .from('bot_configs')
-          .insert({
-            agent_id: agentId,
-            name: 'مساعد ذكي',
-            voice_id: 'ar-male-1',
-            button_color: '#3B82F6',
-          });
-
-        if (configError) {
-          console.error('Error creating bot config:', configError);
-        }
-
+      if (user) {
         // إعادة توجيه للوحة التحكم
         window.location.href = '/dashboard';
       }

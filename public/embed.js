@@ -46,26 +46,20 @@
         return baseUrl;
       }
 
-      // fallback للتطوير المحلي - استخدم HTTP دائماً للـ localhost
-       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-         const fallbackUrl = 'http://localhost:3001';
-         console.log('🏠 Using localhost fallback with HTTP:', fallbackUrl);
-         return fallbackUrl;
-       }
-
-       // fallback عام - استخدم نفس بروتوكول الصفحة المضيفة للمواقع الخارجية
-       const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-       const defaultUrl = `${protocol}//localhost:3001`;
-       console.log('Using default fallback with protocol:', defaultUrl);
-       return defaultUrl;
+      // fallback ذكي - استخدم نفس host و protocol الحالي
+       const currentProtocol = window.location.protocol;
+       const currentHost = window.location.host;
+       const fallbackUrl = `${currentProtocol}//${currentHost}`;
+       console.log('🔄 Using smart fallback based on current location:', fallbackUrl);
+       return fallbackUrl;
      } catch (error) {
        console.error('Error detecting base URL:', error);
-       // للـ localhost، استخدم HTTP دائماً
-       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-         return 'http://localhost:3001';
-       }
-       const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-       return `${protocol}//localhost:3001`;
+       // fallback نهائي - استخدم نفس host و protocol الحالي
+       const currentProtocol = window.location.protocol;
+       const currentHost = window.location.host;
+       const errorFallbackUrl = `${currentProtocol}//${currentHost}`;
+       console.log('🆘 Using error fallback based on current location:', errorFallbackUrl);
+       return errorFallbackUrl;
     }
   }
 
@@ -632,12 +626,8 @@
         // بدء التسجيل
         this.mediaRecorder.start();
 
-        // قول رسالة الترحيب أولاً
+        // قول رسالة الترحيب أولاً، ثم تغيير الحالة عند بدء النطق
         await this.playWelcomeMessage();
-
-        // بعد انتهاء رسالة الترحيب، بدء العداد والتسجيل
-        this.updateWidgetState('connected');
-        this.startCallTimer();
 
         // بدء تسجيل مقاطع قصيرة كل 3 ثوان
         this.startRecordingLoop();
@@ -662,32 +652,28 @@
         // التحقق من وجود رسالة ترحيب
         const welcomeText = this.botConfig?.welcomeMessage;
         if (!welcomeText || !welcomeText.trim()) {
-          console.log('❌ لا توجد رسالة ترحيب مكونة');
+          console.log('❌ لا توجد رسالة ترحيب مكونة - تغيير الحالة مباشرة');
+          this.updateWidgetState('connected');
+          this.startCallTimer();
           return;
         }
 
         console.log('🎬 تشغيل رسالة الترحيب:', welcomeText.substring(0, 50) + '...');
 
-        // توليد الصوت مباشرة باستخدام Speechify Streaming TTS
+        // توليد الصوت مباشرة باستخدام Groq Streaming TTS
         try {
-          // محاولة استخدام Speechify Streaming TTS أولاً (نفس النظام الرئيسي)
-          console.log('🎤 استخدام Speechify Streaming TTS');
+          // محاولة استخدام Groq Streaming TTS أولاً (نفس النظام الرئيسي)
+          console.log('🎤 استخدام Groq Streaming TTS');
           await this.playStreamingTTS(welcomeText);
-          console.log('✅ تم تشغيل Speechify Streaming TTS بنجاح');
+          console.log('✅ تم تشغيل Groq Streaming TTS بنجاح');
         } catch (streamingError) {
           if (streamingError.message && streamingError.message.includes('quota')) {
-            console.log('⚠️ تجاوز حصة Speechify API - التبديل إلى Web Speech API');
+            console.log('⚠️ تجاوز حصة Groq API - تم تعطيل تشغيل الصوت في المتصفح');
           } else {
-            console.log('❌ فشل Speechify Streaming TTS:', streamingError.message);
+            console.log('❌ فشل Groq Streaming TTS:', streamingError.message);
           }
-          // fallback إلى Web Speech API
-          console.log('🗣️ استخدام Web Speech API كبديل');
-          if ('speechSynthesis' in window) {
-            await this.playTextToSpeech(welcomeText);
-            console.log('✅ تم تشغيل Web Speech API بنجاح');
-          } else {
-            console.error('❌ Web Speech API غير متاح في هذا المتصفح');
-          }
+          // تم إزالة Web Speech API - لا يتم تشغيل الصوت في المتصفح
+          console.log('تم تعطيل تشغيل الصوت في المتصفح - لن يتم تشغيل رسالة الترحيب صوتياً');
         }
       } catch (error) {
         console.error('💥 خطأ عام في تشغيل رسالة الترحيب:', {
@@ -699,93 +685,18 @@
           agentId: this.agentId,
           baseUrl: this.config?.baseUrl
         });
-        console.log('⏳ انتظار قصير بسبب الخطأ العام');
-        // fallback - انتظار قصير
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('⏳ تغيير الحالة رغم الخطأ العام');
+        // تغيير الحالة حتى في حالة الخطأ
+        this.updateWidgetState('connected');
+        this.startCallTimer();
       }
     }
 
 
+    // تم إزالة Web Speech API - لا يتم تشغيل الصوت في المتصفح
     async playTextToSpeech(text) {
-      return new Promise((resolve) => {
-        try {
-          console.log('استخدام Web Speech API كبديل للنص:', text.substring(0, 50) + '...');
-          
-          const speakText = () => {
-            const utterance = new SpeechSynthesisUtterance(text);
-
-            // إعدادات الصوت
-            utterance.lang = 'ar-SA'; // العربية السعودية
-            utterance.rate = 0.9;
-            utterance.pitch = 1.0;
-            utterance.volume = 1.0;
-
-            // البحث عن صوت عربي
-            const voices = speechSynthesis.getVoices();
-            console.log('الأصوات المتاحة في Web Speech API:', voices.length);
-            
-            const arabicVoice = voices.find(voice =>
-              voice.lang.includes('ar') ||
-              voice.name.toLowerCase().includes('arabic') ||
-              voice.name.toLowerCase().includes('عربي')
-            );
-
-            if (arabicVoice) {
-              utterance.voice = arabicVoice;
-              console.log('استخدام صوت عربي في Web Speech API:', arabicVoice.name);
-            } else {
-              console.log('لم يتم العثور على صوت عربي، استخدام الصوت الافتراضي');
-              // محاولة استخدام أول صوت متاح
-              if (voices.length > 0) {
-                utterance.voice = voices[0];
-                console.log('استخدام أول صوت متاح:', voices[0].name);
-              }
-            }
-
-            utterance.onend = () => {
-              console.log('انتهى تشغيل Web Speech API بنجاح');
-              resolve();
-            };
-
-            utterance.onerror = (error) => {
-              console.error('خطأ في Web Speech API:', error);
-              resolve(); // resolve anyway
-            };
-
-            console.log('بدء تشغيل Web Speech API');
-            speechSynthesis.speak(utterance);
-
-            // timeout للأمان
-            setTimeout(() => {
-              console.log('انتهت مهلة Web Speech API، إيقاف التشغيل');
-              speechSynthesis.cancel();
-              resolve();
-            }, 10000); // 10 ثوان كحد أقصى
-          };
-
-          // التحقق من تحميل الأصوات
-          const voices = speechSynthesis.getVoices();
-          if (voices.length === 0) {
-            console.log('انتظار تحميل أصوات Web Speech API...');
-            speechSynthesis.onvoiceschanged = () => {
-              console.log('تم تحميل أصوات Web Speech API');
-              speakText();
-            };
-            
-            // timeout للحماية من الانتظار الطويل
-            setTimeout(() => {
-              console.log('انتهت مهلة انتظار الأصوات، محاولة التشغيل');
-              speakText();
-            }, 2000);
-          } else {
-            speakText();
-          }
-
-        } catch (error) {
-          console.error('خطأ في Web Speech API:', error);
-          resolve();
-        }
-      });
+      console.log('تم تعطيل تشغيل الصوت في المتصفح');
+      return Promise.resolve();
     }
 
     // دالة لإنشاء WAV header للـ PCM data
@@ -826,12 +737,12 @@
       return buffer;
     }
 
-    // دالة جديدة لاستخدام Speechify Streaming TTS (نفس النظام الرئيسي)
+    // دالة جديدة لاستخدام Groq Streaming TTS (نفس النظام الرئيسي)
     async playStreamingTTS(text) {
       try {
-        console.log('🎤 محاولة استخدام Speechify Streaming TTS للنص:', text.substring(0, 50) + '...');
+        console.log('🎤 محاولة استخدام Groq Streaming TTS للنص:', text.substring(0, 50) + '...');
         
-        // تحويل النص إلى صوت عبر Speechify Streaming API
+        // تحويل النص إلى صوت عبر Groq Streaming API
         const response = await fetch(`${this.config.baseUrl}/api/voice/text-to-speech/stream`, {
           method: 'POST',
           headers: {
@@ -844,23 +755,23 @@
           })
         });
 
-        console.log('📡 استجابة Speechify Streaming TTS:', response.status, response.statusText);
+        console.log('📡 استجابة Groq Streaming TTS:', response.status, response.statusText);
 
         if (!response.ok) {
           const errorText = await response.text();
           
           if (response.status === 429 || errorText.includes('quota exceeded') || errorText.includes('quota')) {
-            console.log('⚠️ تم تجاوز حصة Speechify API - التبديل إلى Web Speech API');
-            throw new Error('Quota exceeded - using fallback');
+            console.log('⚠️ تم تجاوز حصة Groq API - تم تعطيل تشغيل الصوت في المتصفح');
+            throw new Error('Quota exceeded - voice disabled');
           }
           
-          console.error('❌ فشل طلب Speechify Streaming TTS:', {
+          console.error('❌ فشل طلب Groq Streaming TTS:', {
             status: response.status,
             statusText: response.statusText,
             errorText: errorText
           });
           
-          throw new Error(`Speechify Streaming TTS HTTP error! status: ${response.status}, message: ${errorText}`);
+          throw new Error(`Groq Streaming TTS HTTP error! status: ${response.status}, message: ${errorText}`);
         }
 
         // التحقق من وجود body للـ streaming
@@ -868,7 +779,7 @@
           throw new Error('No response body for streaming');
         }
 
-        console.log('📦 بدء استقبال Speechify Streaming TTS');
+        console.log('📦 بدء استقبال Groq Streaming TTS');
 
         // قراءة البيانات المتدفقة
         const reader = response.body.getReader();
@@ -898,24 +809,24 @@
           offset += chunk.length;
         }
 
-        console.log('✅ تم استقبال جميع بيانات Speechify Streaming TTS');
+        console.log('✅ تم استقبال جميع بيانات Groq Streaming TTS');
 
         // إنشاء Blob من البيانات الصوتية
         const blob = new Blob([audioData], { type: 'audio/mpeg' });
         const audioUrl = URL.createObjectURL(blob);
 
-        console.log('🎵 بدء تشغيل Speechify Streaming TTS');
+        console.log('🎵 بدء تشغيل Groq Streaming TTS');
         // تشغيل الصوت وانتظار انتهائه
         await this.playAudioAndWait(audioUrl);
         URL.revokeObjectURL(audioUrl);
-        console.log('🎉 تم تشغيل Speechify Streaming TTS بنجاح');
+        console.log('🎉 تم تشغيل Groq Streaming TTS بنجاح');
         
       } catch (error) {
         if (error.message && error.message.includes('quota')) {
           // لا نطبع خطأ مفصل لتجاوز الحصة
-          console.log('🔄 التبديل إلى Web Speech API');
+          console.log('🔄 تم تعطيل تشغيل الصوت في المتصفح');
         } else {
-          console.error('💥 خطأ في Speechify Streaming TTS:', {
+          console.error('💥 خطأ في Groq Streaming TTS:', {
             name: error.name,
             message: error.message,
             stack: error.stack
@@ -960,6 +871,13 @@
 
           audio.onloadeddata = () => {
             console.log('Audio data loaded');
+          };
+
+          // تغيير الحالة عند بدء التشغيل الفعلي
+          audio.onplay = () => {
+            console.log('Audio started playing - changing state to connected');
+            this.updateWidgetState('connected');
+            this.startCallTimer();
           };
 
           audio.play().catch(error => {

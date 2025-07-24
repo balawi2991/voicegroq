@@ -198,12 +198,12 @@ const initAudioContext = async () => {
 ### 3. أمان الـ API Keys
 ```typescript
 // في الـ backend فقط
-const SPEECHIFY_API_KEY = process.env.SPEECHIFY_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // عدم تسريب المفاتيح للـ frontend
-if (!SPEECHIFY_API_KEY) {
-  throw new Error('SPEECHIFY_API_KEY is required');
+if (!GROQ_API_KEY) {
+  throw new Error('GROQ_API_KEY is required');
 }
 ```
 
@@ -297,7 +297,7 @@ if (isStreamingSupported()) {
 
 ## 📚 مراجع إضافية
 
-- [Speechify Streaming API Documentation](https://docs.sws.speechify.com/v1/api-reference/api-reference/tts/audio/stream)
+- [Groq API Documentation](https://console.groq.com/docs/speech-text)
 - [Web Audio API MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
 - [ReadableStream API](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream)
 - [MediaRecorder API](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder)

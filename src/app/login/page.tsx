@@ -6,7 +6,7 @@ import { SpaceBackground } from '@/components/space/StarField';
 import { GlowButton } from '@/components/space/GlowButton';
 import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
 import Link from 'next/link';
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { user, loading } = useAuth();
+  const { user, loading, signIn } = useAuth();
   const router = useRouter();
 
   // إعادة توجيه إذا كان المستخدم مسجل دخول بالفعل
@@ -35,27 +35,20 @@ export default function LoginPage() {
     setError('');
 
     try {
-      const { auth } = await import('@/lib/supabase');
       console.log('Attempting to sign in with:', email);
 
-      const { data, error } = await auth.signIn(email, password);
+      const { user: signedInUser, error } = await signIn(email, password);
 
-      console.log('Sign in result:', { data, error });
+      console.log('Sign in result:', { user: signedInUser, error });
 
       if (error) {
-        throw new Error(error.message);
+        throw new Error(error);
       }
 
-      if (data.user) {
-        console.log('User signed in successfully:', data.user.email);
-        // انتظار تحديث AuthProvider ثم إعادة التوجيه
-        console.log('Waiting for auth state to update...');
-
-        // انتظار أطول للتأكد من تحديث AuthProvider
-        setTimeout(() => {
-          console.log('Redirecting to dashboard...');
-          router.replace('/dashboard');
-        }, 1500);
+      if (signedInUser) {
+        console.log('User signed in successfully:', signedInUser.email);
+        console.log('Redirecting to dashboard...');
+        router.replace('/dashboard');
       }
     } catch (err: any) {
       console.error('Login error:', err);

@@ -133,78 +133,10 @@ export function NewVoiceWidget({
     }
   };
 
-  // تحويل النص إلى صوت باستخدام Web Speech API (بديل محلي)
+  // تم إزالة Web Speech API - لا يتم تشغيل الصوت في المتصفح
   const textToSpeechLocal = async (text: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      if (!('speechSynthesis' in window)) {
-        reject(new Error('Web Speech API غير مدعوم في هذا المتصفح'));
-        return;
-      }
-
-      // دالة لتشغيل الصوت
-      const speakText = () => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        
-        // البحث عن صوت عربي
-        const voices = speechSynthesis.getVoices();
-        console.log('الأصوات المتاحة:', voices.length);
-        
-        const arabicVoice = voices.find(voice => 
-          voice.lang.includes('ar') || 
-          voice.name.toLowerCase().includes('arabic') ||
-          voice.name.toLowerCase().includes('عربي')
-        );
-        
-        if (arabicVoice) {
-          utterance.voice = arabicVoice;
-          console.log('استخدام صوت عربي:', arabicVoice.name);
-        } else {
-          console.log('لم يتم العثور على صوت عربي، استخدام الصوت الافتراضي');
-          // محاولة العثور على أي صوت متاح
-          if (voices.length > 0) {
-            utterance.voice = voices[0];
-            console.log('استخدام أول صوت متاح:', voices[0].name);
-          }
-        }
-        
-        utterance.lang = 'ar-SA';
-        utterance.rate = 0.9;
-        utterance.pitch = 1;
-        utterance.volume = 1;
-        
-        utterance.onend = () => {
-          console.log('انتهى تشغيل Web Speech API');
-          resolve();
-        };
-        
-        utterance.onerror = (error) => {
-          console.error('خطأ في Web Speech API:', error);
-          reject(error);
-        };
-        
-        console.log('بدء تشغيل Web Speech API للنص:', text.substring(0, 50) + '...');
-        speechSynthesis.speak(utterance);
-      };
-
-      // التحقق من تحميل الأصوات
-      const voices = speechSynthesis.getVoices();
-      if (voices.length === 0) {
-        console.log('انتظار تحميل الأصوات...');
-        // انتظار تحميل الأصوات
-        speechSynthesis.onvoiceschanged = () => {
-          console.log('تم تحميل الأصوات');
-          speakText();
-        };
-        
-        // timeout للحماية من الانتظار الطويل
-        setTimeout(() => {
-          console.log('انتهت مهلة انتظار الأصوات، محاولة التشغيل');
-          speakText();
-        }, 2000);
-      } else {
-        speakText();
-      }
-    });
+    console.log('تم تعطيل تشغيل الصوت في المتصفح');
+    throw new Error('تم تعطيل تشغيل الصوت في المتصفح');
   };
 
   // تحويل النص إلى صوت باستخدام Streaming API مع fallback
@@ -230,20 +162,14 @@ export function NewVoiceWidget({
         return await fallbackTextToSpeech(text, voiceId);
       } catch (fallbackError) {
         if (fallbackError.message && fallbackError.message.includes('429')) {
-          console.log('⚠️ تجاوز حصة API - التبديل إلى Web Speech API');
+          console.log('⚠️ تجاوز حصة API - تم تعطيل تشغيل الصوت في المتصفح');
         } else {
           console.error('فشل في جميع طرق API، التبديل إلى Web Speech API:', fallbackError);
         }
         
-        // Fallback أخير إلى Web Speech API
-        try {
-          console.log('استخدام Web Speech API كبديل محلي');
-          await textToSpeechLocal(text);
-          return null; // إشارة أن Web Speech API تم استخدامه
-        } catch (localError) {
-          console.error('فشل في Web Speech API أيضاً:', localError);
-          throw new Error('فشل في جميع طرق تحويل النص إلى صوت');
-        }
+        // تم إزالة Web Speech API - لا يتم تشغيل الصوت في المتصفح
+        console.log('تم تعطيل تشغيل الصوت في المتصفح');
+        throw new Error('فشل في تحويل النص إلى صوت - تم تعطيل تشغيل الصوت في المتصفح');
       }
     }
   };
@@ -287,6 +213,9 @@ export function NewVoiceWidget({
     // التحقق من وجود رسالة ترحيب
     if (!welcomeMessage || !welcomeMessage.trim()) {
       console.log('No welcome message configured');
+      // تغيير الحالة إلى connected حتى لو لم تكن هناك رسالة ترحيب
+      setState('connected');
+      setCallDuration(0);
       return;
     }
 
@@ -294,30 +223,39 @@ export function NewVoiceWidget({
       // توليد الصوت مباشرة باستخدام Streaming TTS
       console.log('Generating welcome message using Streaming TTS');
       try {
-        const audioUrl = await textToSpeech(welcomeMessage, voiceId);
-        if (audioUrl) {
-          await playAudio(audioUrl);
-        }
+        // استخدام playStreamingTTS مع onAudioStart
+        await playStreamingTTS(
+          welcomeMessage,
+          voiceId,
+          undefined, // onProgress
+          () => {
+            // تغيير الحالة إلى connected وبدء العداد عند بدء النطق الفعلي
+            setState('connected');
+            setCallDuration(0);
+          }
+        );
         console.log('تم تشغيل رسالة الترحيب بنجاح');
       } catch (ttsError) {
+        // تغيير الحالة إلى connected حتى في حالة فشل TTS
+        setState('connected');
+        setCallDuration(0);
+        
         if (ttsError.message && ttsError.message.includes('429')) {
-          console.log('⚠️ تم التبديل إلى Web Speech API بسبب تجاوز حصة API');
+          console.log('⚠️ تم تعطيل تشغيل الصوت في المتصفح بسبب تجاوز حصة API');
         } else {
           console.log('TTS service temporarily unavailable:', ttsError.message || ttsError);
         }
         
-        // محاولة أخيرة باستخدام Web Speech API مباشرة
-        try {
-          console.log('محاولة أخيرة باستخدام Web Speech API...');
-          await textToSpeechLocal(welcomeMessage);
-          console.log('تم تشغيل رسالة الترحيب باستخدام Web Speech API');
-        } catch (localError) {
-          console.error('فشل في جميع طرق تشغيل رسالة الترحيب:', localError);
-          // عرض رسالة نصية كبديل أخير
-          console.log('عرض رسالة الترحيب كنص:', welcomeMessage);
-        }
+        // تم إزالة Web Speech API - لا يتم تشغيل الصوت في المتصفح
+        console.log('تم تعطيل تشغيل الصوت في المتصفح - لن يتم تشغيل رسالة الترحيب صوتياً');
+        // عرض رسالة نصية كبديل أخير
+        console.log('عرض رسالة الترحيب كنص:', welcomeMessage);
       }
     } catch (err) {
+      // تغيير الحالة إلى connected حتى في حالة الخطأ
+      setState('connected');
+      setCallDuration(0);
+      
       console.error('Error playing welcome message:', {
         errorName: err?.name || 'Unknown',
         errorMessage: err?.message || 'Unknown error',
@@ -329,7 +267,7 @@ export function NewVoiceWidget({
       
       // محاولة أخيرة باستخدام Web Speech API
       try {
-        console.log('محاولة طوارئ باستخدام Web Speech API...');
+        console.log('تم تعطيل تشغيل الصوت في المتصفح...');
         await textToSpeechLocal(welcomeMessage);
         console.log('تم تشغيل رسالة الترحيب في محاولة الطوارئ');
       } catch (emergencyError) {
@@ -337,9 +275,6 @@ export function NewVoiceWidget({
       }
     }
   };
-
-
-
 
   // بدء المكالمة
   const startCall = async () => {
@@ -364,10 +299,7 @@ export function NewVoiceWidget({
       // تخزين معرف الجلسة في متغير عام للاستخدام لاحقاً
       (window as any).currentSessionId = result.data.sessionId;
       
-      setState('connected');
-      setCallDuration(0);
-      
-      // تشغيل رسالة الترحيب
+      // تشغيل رسالة الترحيب أولاً، ثم تغيير الحالة عند بدء الصوت
       await playWelcomeMessage();
     } catch (error) {
       console.error('Error starting call:', error);
