@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { database } from '@/lib/db';
+import { startSession } from '@/lib/session-manager';
 
 // CORS headers
 const corsHeaders = {
@@ -44,6 +45,10 @@ export async function POST(request: NextRequest) {
     // إنشاء معرف جلسة جديد
     const sessionId = `session_${uuidv4()}`;
 
+    // جلب إعدادات البوت للحصول على الحد الأقصى لمدة المكالمة
+    const { data: botConfig } = await database.botConfigs.getByAgentId(agentId);
+    const maxCallDuration = botConfig?.max_call_duration || 3; // افتراضي 3 دقائق
+
     // تخزين الجلسة في قاعدة البيانات
     const { data, error } = await database.conversations.create({
       session_id: sessionId,
@@ -67,10 +72,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // إرجاع معرف الجلسة
+    // بدء تتبع الجلسة مع الحد الأقصى للمدة
+    startSession(sessionId, agentId, maxCallDuration);
+
+    // إرجاع معرف الجلسة مع معلومات المدة
     return NextResponse.json({
       success: true,
-      data: { sessionId }
+      data: { 
+        sessionId,
+        maxCallDuration
+      }
     }, {
       headers: {
         ...corsHeaders,

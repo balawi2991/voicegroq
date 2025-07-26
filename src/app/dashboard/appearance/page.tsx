@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { NewVoiceWidget } from '@/components/voice/NewVoiceWidget';
 import { GlowButton } from '@/components/space/GlowButton';
+import { debounce } from '@/lib/utils';
 import {
   Palette,
   User,
@@ -13,7 +14,10 @@ import {
   Save,
   Upload,
   Volume2,
-  Smile
+  Smile,
+  Clock,
+  Check,
+  Loader2
 } from 'lucide-react';
 import { AVAILABLE_VOICES, AVAILABLE_AVATARS, type VoiceOption } from '@/types';
 
@@ -24,11 +28,15 @@ function AppearanceContent() {
     avatarEmoji: '🤖',
     voiceId: 'ar-male-1',
     avatarUrl: '',
-    welcomeMessage: ''
+    welcomeMessage: '',
+    maxCallDuration: 3
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [fieldSaveStates, setFieldSaveStates] = useState<Record<string, 'idle' | 'pending' | 'saving' | 'saved'>>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const lastSavedConfig = useRef(config);
 
   // جلب تكوين البوت عند تحميل الصفحة
   useEffect(() => {
@@ -45,7 +53,8 @@ function AppearanceContent() {
             avatarEmoji: result.data.avatar_emoji || '🤖',
             voiceId: result.data.voice_id || 'ar-male-1',
             avatarUrl: result.data.avatar_url || '',
-            welcomeMessage: result.data.welcome_message || ''
+            welcomeMessage: result.data.welcome_message || '',
+            maxCallDuration: result.data.max_call_duration || 3
           });
         }
       } catch (error) {
@@ -58,12 +67,104 @@ function AppearanceContent() {
     fetchBotConfig();
   }, [user?.agentId]);
 
-  const updateConfig = (updates: Partial<typeof config>) => {
+  // دالة debounced للحفظ التلقائي
+  const debouncedAutoSave = useCallback(
+    debounce(async (configToSave: typeof config, fieldName?: string) => {
+      if (!user?.agentId) return;
+      
+      // التحقق من وجود تغييرات فعلية
+      const hasChanges = JSON.stringify(configToSave) !== JSON.stringify(lastSavedConfig.current);
+      if (!hasChanges) return;
+
+      // تحديث حالة الحفظ للحقل المحدد
+      if (fieldName) {
+        setFieldSaveStates(prev => ({ ...prev, [fieldName]: 'saving' }));
+      }
+      setIsSaving(true);
+
+      try {
+        const response = await fetch(`/api/bot/config/${user.agentId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: configToSave.name,
+            avatar_emoji: configToSave.avatarEmoji,
+            voice_id: configToSave.voiceId,
+            avatar_url: configToSave.avatarUrl,
+            welcome_message: configToSave.welcomeMessage,
+            max_call_duration: configToSave.maxCallDuration,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          lastSavedConfig.current = configToSave;
+          setHasUnsavedChanges(false);
+          
+          // تحديث حالة الحفظ للحقل المحدد
+          if (fieldName) {
+            setFieldSaveStates(prev => ({ ...prev, [fieldName]: 'saved' }));
+            // إخفاء مؤشر "محفوظ" بعد 2 ثانية
+            setTimeout(() => {
+              setFieldSaveStates(prev => ({ ...prev, [fieldName]: 'idle' }));
+            }, 2000);
+          }
+
+          // إشعار embed.js بالتحديث
+          try {
+            localStorage.setItem(`bot_config_${user.agentId}`, JSON.stringify({
+              name: configToSave.name,
+              avatarEmoji: configToSave.avatarEmoji,
+              voiceId: configToSave.voiceId,
+              avatarUrl: configToSave.avatarUrl,
+              welcomeMessage: configToSave.welcomeMessage,
+              maxCallDuration: configToSave.maxCallDuration,
+              timestamp: Date.now()
+            }));
+            
+            localStorage.setItem('config_updated', Date.now().toString());
+            
+            window.dispatchEvent(new CustomEvent('botConfigUpdate', {
+              detail: {
+                agentId: user.agentId,
+                config: configToSave,
+                timestamp: Date.now()
+              }
+            }));
+          } catch (e) {
+            console.log('Could not update localStorage for embed notification:', e);
+          }
+        } else {
+          throw new Error(result.error);
+        }
+      } catch (err) {
+        console.error('Error saving config:', err);
+        if (fieldName) {
+          setFieldSaveStates(prev => ({ ...prev, [fieldName]: 'idle' }));
+        }
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1500),
+    [user?.agentId]
+  );
+
+  const updateConfig = (updates: Partial<typeof config>, fieldName?: string) => {
     const newConfig = { ...config, ...updates };
     setConfig(newConfig);
-    // الحفظ التلقائي لكل شيء عدا رسالة الترحيب
+    setHasUnsavedChanges(true);
+    
+    // تحديث حالة الحقل إلى "في الانتظار"
+    if (fieldName) {
+      setFieldSaveStates(prev => ({ ...prev, [fieldName]: 'pending' }));
+    }
+    
+    // الحفظ التلقائي لكل شيء عدا رسالة الترحيب (التي تحتاج حفظ يدوي)
     if (!updates.hasOwnProperty('welcomeMessage')) {
-      autoSaveWithConfig(newConfig);
+      debouncedAutoSave(newConfig, fieldName);
     }
   };
 
@@ -71,7 +172,9 @@ function AppearanceContent() {
   const saveWelcomeMessage = async () => {
     if (!user?.agentId) return;
 
+    setFieldSaveStates(prev => ({ ...prev, welcomeMessage: 'saving' }));
     setIsSaving(true);
+    
     try {
       const response = await fetch(`/api/bot/config/${user.agentId}`, {
         method: 'PUT',
@@ -84,35 +187,37 @@ function AppearanceContent() {
           voice_id: config.voiceId,
           avatar_url: config.avatarUrl,
           welcome_message: config.welcomeMessage,
+          max_call_duration: config.maxCallDuration,
         }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        // ملاحظة: تم إزالة توليد الملف الصوتي المسبق لتجنب الطلبات المكررة
-        // الآن سيتم توليد الصوت مباشرة عند الحاجة باستخدام Simba Multilingual API
-        console.log('تم حفظ إعدادات البوت، سيتم توليد الصوت عند الحاجة باستخدام Simba Multilingual API');
-
+        lastSavedConfig.current = config;
+        setHasUnsavedChanges(false);
+        setFieldSaveStates(prev => ({ ...prev, welcomeMessage: 'saved' }));
+        
         setSaveMessage('تم حفظ رسالة الترحيب بنجاح');
-        setTimeout(() => setSaveMessage(''), 2000);
+        setTimeout(() => {
+          setSaveMessage('');
+          setFieldSaveStates(prev => ({ ...prev, welcomeMessage: 'idle' }));
+        }, 2000);
 
-        // إشعار embed.js بالتحديث - طرق متعددة للتأكد من الوصول
+        // إشعار embed.js بالتحديث
         try {
-          // الطريقة الأولى: localStorage مع المفتاح الصحيح
           localStorage.setItem(`bot_config_${user.agentId}`, JSON.stringify({
             name: config.name,
             avatarEmoji: config.avatarEmoji,
             voiceId: config.voiceId,
             avatarUrl: config.avatarUrl,
             welcomeMessage: config.welcomeMessage,
+            maxCallDuration: config.maxCallDuration,
             timestamp: Date.now()
           }));
           
-          // الطريقة الثانية: إشعار عام للتحديث
           localStorage.setItem('config_updated', Date.now().toString());
           
-          // الطريقة الثالثة: إرسال حدث مخصص
           window.dispatchEvent(new CustomEvent('botConfigUpdate', {
             detail: {
               agentId: user.agentId,
@@ -120,8 +225,6 @@ function AppearanceContent() {
               timestamp: Date.now()
             }
           }));
-          
-          console.log('🔔 Embed notification sent via multiple channels');
         } catch (e) {
           console.log('Could not update localStorage for embed notification:', e);
         }
@@ -130,78 +233,48 @@ function AppearanceContent() {
       }
     } catch (err) {
       setSaveMessage('فشل في حفظ رسالة الترحيب');
+      setFieldSaveStates(prev => ({ ...prev, welcomeMessage: 'idle' }));
       console.error('Error saving welcome message:', err);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const autoSaveWithConfig = async (configToSave: typeof config) => {
-    if (!user?.agentId) return;
-
-    setIsSaving(true);
-    try {
-      const response = await fetch(`/api/bot/config/${user.agentId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: configToSave.name,
-          avatar_emoji: configToSave.avatarEmoji,
-          voice_id: configToSave.voiceId,
-          avatar_url: configToSave.avatarUrl,
-          welcome_message: configToSave.welcomeMessage,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        console.log('تم حفظ إعدادات البوت تلقائياً، سيتم توليد الصوت عند الحاجة باستخدام Simba Multilingual API');
-
-        setSaveMessage('تم الحفظ تلقائياً');
-        setTimeout(() => setSaveMessage(''), 2000);
-
-        // إشعار embed.js بالتحديث
-        try {
-          localStorage.setItem(`bot_config_${user.agentId}`, JSON.stringify({
-            name: configToSave.name,
-            avatarEmoji: configToSave.avatarEmoji,
-            voiceId: configToSave.voiceId,
-            avatarUrl: configToSave.avatarUrl,
-            welcomeMessage: configToSave.welcomeMessage,
-            timestamp: Date.now()
-          }));
-          
-          localStorage.setItem('config_updated', Date.now().toString());
-          
-          window.dispatchEvent(new CustomEvent('botConfigUpdate', {
-            detail: {
-              agentId: user.agentId,
-              config: {
-                name: configToSave.name,
-                avatarEmoji: configToSave.avatarEmoji,
-                voiceId: configToSave.voiceId,
-                welcomeMessage: configToSave.welcomeMessage
-              },
-              timestamp: Date.now()
-            }
-          }));
-          
-          console.log('🔔 Auto-save embed notification sent via multiple channels');
-        } catch (e) {
-          console.log('Could not update localStorage for embed notification:', e);
-        }
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (err) {
-      setSaveMessage('فشل في الحفظ');
-      console.error('Error saving config:', err);
-    } finally {
-      setIsSaving(false);
+  // دالة مساعدة لعرض مؤشر حالة الحفظ
+  const getSaveIndicator = (fieldName: string) => {
+    const state = fieldSaveStates[fieldName] || 'idle';
+    
+    switch (state) {
+      case 'pending':
+        return (
+          <div className="flex items-center gap-1 text-yellow-400 text-xs">
+            <Clock className="w-3 h-3" />
+            <span>في الانتظار...</span>
+          </div>
+        );
+      case 'saving':
+        return (
+          <div className="flex items-center gap-1 text-blue-400 text-xs">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span>جاري الحفظ...</span>
+          </div>
+        );
+      case 'saved':
+        return (
+          <div className="flex items-center gap-1 text-green-400 text-xs">
+            <Check className="w-3 h-3" />
+            <span>محفوظ</span>
+          </div>
+        );
+      default:
+        return null;
     }
+  };
+
+  const autoSaveWithConfig = async (configToSave: typeof config) => {
+    // تم استبدال هذه الدالة بـ debouncedAutoSave
+    // تبقى هنا للتوافق مع الكود القديم
+    console.log('autoSaveWithConfig deprecated, using debouncedAutoSave instead');
   };
 
   const autoSave = async () => {
@@ -220,6 +293,7 @@ function AppearanceContent() {
           voice_id: config.voiceId,
           avatar_url: config.avatarUrl,
           welcome_message: config.welcomeMessage,
+          max_call_duration: config.maxCallDuration,
         }),
       });
 
@@ -242,6 +316,7 @@ function AppearanceContent() {
             voiceId: config.voiceId,
             avatarUrl: config.avatarUrl,
             welcomeMessage: config.welcomeMessage,
+            maxCallDuration: config.maxCallDuration,
             timestamp: Date.now()
           }));
           
@@ -256,7 +331,8 @@ function AppearanceContent() {
                 name: config.name,
                 avatarEmoji: config.avatarEmoji,
                 voiceId: config.voiceId,
-                welcomeMessage: config.welcomeMessage
+                welcomeMessage: config.welcomeMessage,
+                maxCallDuration: config.maxCallDuration
               },
               timestamp: Date.now()
             }
@@ -395,15 +471,18 @@ function AppearanceContent() {
           >
             {/* اسم المساعد */}
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="flex items-center gap-3 mb-4">
-                <User className="w-5 h-5 text-blue-400" />
-                <h3 className="text-lg font-semibold text-white">اسم المساعد</h3>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <User className="w-5 h-5 text-blue-400" />
+                  <h3 className="text-lg font-semibold text-white">اسم المساعد</h3>
+                </div>
+                {getSaveIndicator('name')}
               </div>
               
               <input
                 type="text"
                 value={config.name}
-                onChange={(e) => updateConfig({ name: e.target.value })}
+                onChange={(e) => updateConfig({ name: e.target.value }, 'name')}
                 className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
                 placeholder="أدخل اسم المساعد"
               />
@@ -415,16 +494,19 @@ function AppearanceContent() {
 
             {/* الأفاتار */}
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="flex items-center gap-3 mb-4">
-                <Smile className="w-5 h-5 text-purple-400" />
-                <h3 className="text-lg font-semibold text-white">الأفاتار</h3>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Smile className="w-5 h-5 text-purple-400" />
+                  <h3 className="text-lg font-semibold text-white">الأفاتار</h3>
+                </div>
+                {getSaveIndicator('avatarEmoji')}
               </div>
-
+              
               <div className="grid grid-cols-5 gap-3">
                 {AVAILABLE_AVATARS.map((avatar) => (
                   <button
                     key={avatar.emoji}
-                    onClick={() => updateConfig({ avatarEmoji: avatar.emoji })}
+                    onClick={() => updateConfig({ avatarEmoji: avatar.emoji }, 'avatarEmoji')}
                     className={`w-12 h-12 rounded-lg transition-all flex items-center justify-center text-2xl ${
                       config.avatarEmoji === avatar.emoji
                         ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-transparent scale-110 bg-blue-500/20'
@@ -444,9 +526,12 @@ function AppearanceContent() {
 
             {/* نوع الصوت */}
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="flex items-center gap-3 mb-4">
-                <Mic className="w-5 h-5 text-green-400" />
-                <h3 className="text-lg font-semibold text-white">نوع الصوت</h3>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Mic className="w-5 h-5 text-green-400" />
+                  <h3 className="text-lg font-semibold text-white">نوع الصوت</h3>
+                </div>
+                {getSaveIndicator('voiceId')}
               </div>
               
               <div className="space-y-3">
@@ -458,7 +543,7 @@ function AppearanceContent() {
                         ? 'bg-blue-500/20 border-blue-500/50'
                         : 'bg-white/5 border-white/10 hover:bg-white/10'
                     }`}
-                    onClick={() => updateConfig({ voiceId: voice.id })}
+                    onClick={() => updateConfig({ voiceId: voice.id }, 'voiceId')}
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -533,17 +618,55 @@ function AppearanceContent() {
               </div>
             </div>
 
+            {/* الحد الأقصى لمدة المكالمة */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Clock className="w-5 h-5 text-yellow-400" />
+                  <h3 className="text-lg font-semibold text-white">الحد الأقصى لمدة المكالمة</h3>
+                </div>
+                {getSaveIndicator('maxCallDuration')}
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    value={config.maxCallDuration}
+                    onChange={(e) => updateConfig({ maxCallDuration: parseInt(e.target.value) }, 'maxCallDuration')}
+                    className="flex-1 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer slider"
+                  />
+                  <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg px-3 py-2 min-w-[80px] text-center">
+                    <span className="text-white font-medium">{config.maxCallDuration}</span>
+                    <span className="text-gray-400 text-sm mr-1">دقيقة</span>
+                  </div>
+                </div>
+                
+                <p className="text-sm text-gray-400">
+                  الحد الأقصى لمدة المكالمة الصوتية الواحدة (1-10 دقائق)
+                </p>
+              </div>
+            </div>
+
             {/* رسالة الترحيب */}
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="flex items-center gap-3 mb-4">
-                <Mic className="w-5 h-5 text-orange-400" />
-                <h3 className="text-lg font-semibold text-white">رسالة الترحيب</h3>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Mic className="w-5 h-5 text-orange-400" />
+                  <h3 className="text-lg font-semibold text-white">رسالة الترحيب</h3>
+                </div>
+                {getSaveIndicator('welcomeMessage')}
               </div>
               
               <div className="space-y-3">
                 <textarea
                   value={config.welcomeMessage}
-                  onChange={(e) => updateConfig({ welcomeMessage: e.target.value })}
+                  onChange={(e) => {
+                    updateConfig({ welcomeMessage: e.target.value });
+                    setFieldSaveStates(prev => ({ ...prev, welcomeMessage: 'pending' }));
+                  }}
                   className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all resize-none"
                   rows={3}
                   placeholder={`مرحباً، أنا ${config.name}. كيف يمكنني مساعدتك؟`}
@@ -556,13 +679,13 @@ function AppearanceContent() {
                   
                   <GlowButton
                     onClick={saveWelcomeMessage}
-                    disabled={isSaving}
+                    disabled={isSaving || fieldSaveStates.welcomeMessage === 'saving'}
                     variant="primary"
                     size="sm"
                     className="min-w-[100px]"
                   >
-                    {isSaving ? (
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    {isSaving || fieldSaveStates.welcomeMessage === 'saving' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <>
                         <Save className="w-4 h-4" />

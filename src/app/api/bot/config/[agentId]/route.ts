@@ -37,6 +37,7 @@ export async function GET(
         voice_id: 'ar-male-1',
         avatar_url: null,
         avatar_emoji: '🤖',
+        max_call_duration: 3,
       };
 
       const { data: newConfig, error: createError } = await database.botConfigs.upsert(defaultConfig);
@@ -56,7 +57,8 @@ export async function GET(
       avatar_emoji: newConfig.avatar_emoji,
       voice_id: newConfig.voice_id,
       welcome_message: newConfig.welcome_message,
-      avatar_url: newConfig.avatar_url
+      avatar_url: newConfig.avatar_url,
+      max_call_duration: newConfig.max_call_duration
     };
     
     const response = NextResponse.json({
@@ -85,7 +87,8 @@ export async function GET(
       avatar_emoji: config.avatar_emoji,
       voice_id: config.voice_id,
       welcome_message: config.welcome_message,
-      avatar_url: config.avatar_url
+      avatar_url: config.avatar_url,
+      max_call_duration: config.max_call_duration
     };
     
     const response = NextResponse.json({
@@ -142,6 +145,7 @@ export async function PUT(
       voice_id: body.voice_id || 'ar-male-1',
       avatar_url: body.avatar_url || null,
       avatar_emoji: body.avatar_emoji || '🤖',
+      max_call_duration: body.max_call_duration || 3,
     };
     
     console.log('Update data:', JSON.stringify(updateData, null, 2));
@@ -163,7 +167,8 @@ export async function PUT(
       avatar_emoji: config.avatar_emoji,
       voice_id: config.voice_id,
       welcome_message: config.welcome_message,
-      avatar_url: config.avatar_url
+      avatar_url: config.avatar_url,
+      max_call_duration: config.max_call_duration
     };
     
     const response = NextResponse.json({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { database } from '@/lib/db';
+import { endSession } from '@/lib/session-manager';
 
 // CORS headers
 const corsHeaders = {
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
         }
       );
     }
+
+    // إنهاء تتبع الجلسة
+    endSession(sessionId);
 
     // تحديث الجلسة في قاعدة البيانات
     const { data, error } = await database.conversations.endSession(sessionId);

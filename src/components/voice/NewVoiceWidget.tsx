@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Phone, X, Mic, MessageCircle } from 'lucide-react';
-import { playStreamingTTS, fallbackTextToSpeech, isStreamingSupported } from '@/utils/streamingTTS';
+import { playStreamingTTS, fallbackTextToSpeech, isStreamingSupported } from '@/lib/streamingTTS';
 
 // أنواع الحالات المختلفة للويدجت
 type WidgetState = 'idle' | 'connecting' | 'connected' | 'ending';
@@ -94,7 +94,7 @@ export function NewVoiceWidget({
     }
   };
 
-  // تنسيق مدة المكالمة
+  // تنسيق مدة المكالمة (عداد تصاعدي)
   const formatCallDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;

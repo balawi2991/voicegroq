@@ -14,6 +14,7 @@ export interface BotConfig {
   avatarEmoji: string;
   voiceId: string;
   welcomeMessage?: string;
+  maxCallDuration: number; // الحد الأقصى لمدة المكالمة بالدقائق
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

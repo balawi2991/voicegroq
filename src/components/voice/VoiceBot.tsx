@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, Volume2, Loader2 } from 'lucide-react';
 import { NewVoiceWidget } from '@/components/voice/NewVoiceWidget';
 import { cn } from '@/lib/utils';
-import { playStreamingTTS, fallbackTextToSpeech, isStreamingSupported } from '@/utils/streamingTTS';
+import { playStreamingTTS, fallbackTextToSpeech, isStreamingSupported } from '@/lib/streamingTTS';
+import { isSessionActive } from '@/lib/session-manager';
 import type { VoiceBotProps, BotConfig, VoiceSession } from '@/types';
 
 export function VoiceBot({
@@ -19,6 +20,8 @@ export function VoiceBot({
   const [session, setSession] = useState<VoiceSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const [sessionExpired, setSessionExpired] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -27,6 +30,27 @@ export function VoiceBot({
   useEffect(() => {
     fetchBotConfig();
   }, [agentId]);
+
+  // تحديث مؤقت المكالمة
+  useEffect(() => {
+    if (!session?.sessionId) return;
+
+    const interval = setInterval(() => {
+      if (!isSessionActive(session.sessionId)) {
+        setSessionExpired(true);
+        endVoiceSession();
+        return;
+      }
+
+      // حساب الوقت المنقضي بدلاً من المتبقي
+      const startTime = new Date(session.startTime).getTime();
+      const currentTime = Date.now();
+      const elapsed = Math.floor((currentTime - startTime) / 1000);
+      setElapsedTime(elapsed);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [session?.sessionId]);
 
   const fetchBotConfig = async () => {
     try {
@@ -237,7 +261,7 @@ export function VoiceBot({
       // TODO: معالجة الصوت عبر API
       // 1. تحويل الصوت إلى نص (Gladia)
       // 2. معالجة النص (Gemini + RAG)
-      // 3. تحويل الرد إلى صوت (ElevenLabs)
+      // 3. تحويل الرد إلى صوت (Groq TTS)
       
       // محاكاة المعالجة
       await new Promise(resolve => setTimeout(resolve, 3000));
@@ -273,7 +297,7 @@ export function VoiceBot({
     }
   };
 
-  const stopSession = async () => {
+  const endVoiceSession = async () => {
     if (mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
     }
@@ -294,6 +318,17 @@ export function VoiceBot({
     }
 
     setSession(null);
+    setElapsedTime(0);
+    setSessionExpired(false);
+  };
+
+  const stopSession = endVoiceSession;
+
+  // تنسيق الوقت المنقضي (عداد تصاعدي)
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   if (isLoading) {
@@ -337,14 +372,25 @@ export function VoiceBot({
       {/* عرض حالة الجلسة في وضع المعاينة */}
       {mode === 'preview' && session && (
         <motion.div
-          className="absolute -bottom-12 left-1/2 transform -translate-x-1/2"
+          className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 space-y-2"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
         >
+          {/* مؤقت المكالمة */}
           <div className="bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1 text-sm text-white">
-            {session.isListening && 'يستمع...'}
-            {session.isProcessing && 'يعالج...'}
-            {session.isPlaying && 'يتحدث...'}
+            <span className={cn(
+              elapsedTime >= 240 ? 'text-red-400' : 'text-white'
+            )}>
+              {formatTime(elapsedTime)}
+            </span>
+          </div>
+          
+          {/* حالة الجلسة */}
+          <div className="bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1 text-sm text-white">
+            {sessionExpired && 'انتهت مدة المكالمة'}
+            {!sessionExpired && session.isListening && 'يستمع...'}
+            {!sessionExpired && session.isProcessing && 'يعالج...'}
+            {!sessionExpired && session.isPlaying && 'يتحدث...'}
           </div>
         </motion.div>
       )}

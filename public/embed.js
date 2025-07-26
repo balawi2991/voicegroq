@@ -81,6 +81,7 @@
       this.widgetState = 'idle';
       this.callDuration = 0;
       this.callTimer = null;
+      this.maxCallDuration = 3; // افتراضي 3 دقائق
       this.mediaRecorder = null;
       this.audioChunks = [];
       this.sessionId = null;
@@ -150,8 +151,10 @@
             name: result.data.name || 'مساعد ذكي',
             avatarEmoji: result.data.avatar_emoji || '🤖',
             voiceId: result.data.voice_id || 'ar-male-1',
-            welcomeMessage: result.data.welcome_message || ''
+            welcomeMessage: result.data.welcome_message || '',
+            maxCallDuration: result.data.max_call_duration || 3
           };
+          this.maxCallDuration = this.botConfig.maxCallDuration;
           console.log('✅ Bot config loaded:', this.botConfig);
           console.log('📢 Welcome message:', this.botConfig.welcomeMessage || 'No welcome message set');
         } else {
@@ -161,8 +164,10 @@
             name: 'مساعد ذكي',
             avatarEmoji: '🤖',
             voiceId: 'ar-male-1',
-            welcomeMessage: ''
+            welcomeMessage: '',
+            maxCallDuration: 3
           };
+          this.maxCallDuration = 3;
         }
       } catch (error) {
         console.error('❌ Error fetching bot config:', error);
@@ -171,8 +176,10 @@
           name: 'مساعد ذكي',
           avatarEmoji: '🤖',
           voiceId: 'ar-male-1',
-          welcomeMessage: ''
+          welcomeMessage: '',
+          maxCallDuration: 3
         };
+        this.maxCallDuration = 3;
       }
     }
 
@@ -493,9 +500,20 @@
     }
 
     formatCallDuration() {
-      const mins = Math.floor(this.callDuration / 60);
-      const secs = this.callDuration % 60;
-      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      const maxDurationInSeconds = this.maxCallDuration * 60;
+      const elapsedTime = this.callDuration;
+      const mins = Math.floor(elapsedTime / 60);
+      const secs = elapsedTime % 60;
+      
+      const timeText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      
+      // إضافة تحذير بصري إذا كان الوقت المنقضي قريب من الحد الأقصى (آخر دقيقة)
+      const remainingTime = Math.max(0, maxDurationInSeconds - elapsedTime);
+      if (remainingTime <= 60 && remainingTime > 0) {
+        return `<span style="color: #ef4444; font-weight: bold;">${timeText}</span>`;
+      }
+      
+      return timeText;
     }
 
     getStateIcon() {
@@ -1046,6 +1064,15 @@
       this.callDuration = 0;
       this.callTimer = setInterval(() => {
         this.callDuration++;
+        
+        // التحقق من انتهاء الحد الأقصى للمكالمة
+        const maxDurationInSeconds = this.maxCallDuration * 60;
+        if (this.callDuration >= maxDurationInSeconds) {
+          console.log('⏰ انتهت مدة المكالمة المسموحة');
+          this.endCall();
+          return;
+        }
+        
         this.updateWidget(); // تحديث العداد
       }, 1000);
     }

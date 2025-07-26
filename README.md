@@ -43,8 +43,9 @@
 - **ShadCN UI** - مكونات UI جاهزة وأنيقة
 
 ### Backend & Database
-- **Supabase** - قاعدة بيانات PostgreSQL مع مصادقة
+- **Neon PostgreSQL** - قاعدة بيانات PostgreSQL سحابية عالية الأداء
 - **Next.js API Routes** - APIs سريعة ومدمجة
+- **Custom Authentication** - نظام مصادقة مخصص وآمن
 
 ### AI & Voice Processing
 - **Gladia API** - تحويل الصوت إلى نص
@@ -73,18 +74,21 @@ cp .env.local.example .env.local
 املأ المتغيرات التالية في `.env.local`:
 
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+# Database Configuration (Neon PostgreSQL)
+DATABASE_URL=your_neon_database_url
 
 # Voice APIs
 GLADIA_API_KEY=your_gladia_key
 
 # AI & TTS
-# OpenAI TTS (currently disabled - can be enabled later)
-OPENAI_API_KEY=your_openai_key
-# Groq TTS (currently active)
+# Google Gemini AI (for natural language processing)
+GEMINI_API_KEY=your_gemini_api_key
+
+# Groq TTS (currently active for text-to-speech)
 GROQ_API_KEY=your_groq_api_key
+
+# OpenAI TTS (alternative TTS option - currently disabled)
+# OPENAI_API_KEY=your_openai_key
 ```
 
 ### 4. تشغيل المشروع

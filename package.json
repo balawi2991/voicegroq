@@ -14,7 +14,7 @@
     "clean": "rm -rf .next out dist",
     "analyze": "ANALYZE=true npm run build",
     "test": "echo \"No tests specified\" && exit 0",
-    "setup-db": "node scripts/setup-database.js",
+    "setup-db": "node scripts/setup-neon-database.js",
     "update-embed": "node scripts/update-version.js"
   },
   "dependencies": {

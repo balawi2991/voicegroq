@@ -67,6 +67,7 @@ export interface BotConfig {
   voice_id: string;
   avatar_url?: string;
   avatar_emoji?: string;
+  max_call_duration: number; // الحد الأقصى لمدة المكالمة بالدقائق
   created_at: string;
   updated_at: string;
 }
@@ -187,8 +188,8 @@ export const botConfigs = {
     try {
       const db = await ensureDatabase();
       const result = await db(
-        `INSERT INTO bot_configs (agent_id, bot_name, welcome_message, primary_color, secondary_color, voice_id, avatar_url, avatar_emoji, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+        `INSERT INTO bot_configs (agent_id, bot_name, welcome_message, primary_color, secondary_color, voice_id, avatar_url, avatar_emoji, max_call_duration, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
          ON CONFLICT (agent_id) DO UPDATE SET
          bot_name = EXCLUDED.bot_name,
          welcome_message = EXCLUDED.welcome_message,
@@ -197,9 +198,10 @@ export const botConfigs = {
          voice_id = EXCLUDED.voice_id,
          avatar_url = EXCLUDED.avatar_url,
          avatar_emoji = EXCLUDED.avatar_emoji,
+         max_call_duration = EXCLUDED.max_call_duration,
          updated_at = NOW()
          RETURNING *`,
-        [config.agent_id, config.bot_name, config.welcome_message, config.primary_color, config.secondary_color, config.voice_id, config.avatar_url, config.avatar_emoji]
+        [config.agent_id, config.bot_name, config.welcome_message, config.primary_color, config.secondary_color, config.voice_id, config.avatar_url, config.avatar_emoji, config.max_call_duration]
       );
       return { data: result.rows[0], error: null };
     } catch (error) {

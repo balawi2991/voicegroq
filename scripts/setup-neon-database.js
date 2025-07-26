@@ -40,6 +40,7 @@ async function setupDatabase() {
         secondary_color TEXT NOT NULL DEFAULT '#1E40AF',
         voice_id TEXT NOT NULL DEFAULT 'ar-male-1',
         avatar_url TEXT,
+        max_call_duration INTEGER NOT NULL DEFAULT 3,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
@@ -127,16 +128,17 @@ async function setupDatabase() {
     
     // إنشاء تكوين البوت التجريبي
     await pool.query(`
-      INSERT INTO bot_configs (agent_id, bot_name, welcome_message, primary_color, secondary_color, voice_id)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO bot_configs (agent_id, bot_name, welcome_message, primary_color, secondary_color, voice_id, max_call_duration)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (agent_id) DO UPDATE SET
         bot_name = EXCLUDED.bot_name,
         welcome_message = EXCLUDED.welcome_message,
         primary_color = EXCLUDED.primary_color,
         secondary_color = EXCLUDED.secondary_color,
         voice_id = EXCLUDED.voice_id,
+        max_call_duration = EXCLUDED.max_call_duration,
         updated_at = NOW();
-    `, [agentId, 'مساعد ذكي', 'مرحباً! كيف يمكنني مساعدتك اليوم؟', '#3B82F6', '#1E40AF', 'ar-male-1']);
+    `, [agentId, 'مساعد ذكي', 'مرحباً! كيف يمكنني مساعدتك اليوم؟', '#3B82F6', '#1E40AF', 'ar-male-1', 3]);
     
     // إدراج أسئلة شائعة تجريبية
     const faqs = [

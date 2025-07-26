@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { database } from '@/lib/db';
+import { isSessionActive } from '@/lib/session-manager';
 
 // CORS headers
 const corsHeaders = {
@@ -222,6 +223,24 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields' },
         { 
           status: 400,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+        }
+      );
+    }
+
+    // التحقق من انتهاء مدة الجلسة
+    if (!isSessionActive(sessionId)) {
+      return NextResponse.json(
+        { 
+          error: 'Session expired',
+          message: 'انتهت مدة الجلسة المسموحة للمكالمة',
+          sessionExpired: true
+        },
+        { 
+          status: 410, // Gone - الجلسة منتهية
           headers: {
             ...corsHeaders,
             'Content-Type': 'application/json; charset=utf-8',
