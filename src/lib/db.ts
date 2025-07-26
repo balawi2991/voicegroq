@@ -409,6 +409,34 @@ export const conversations = {
       return { data: null, error };
     }
   },
+
+  updateMessageCount: async (sessionId: string, messageCount: number) => {
+    try {
+      const db = await ensureDatabase();
+      const result = await db(
+        'UPDATE conversations SET message_count = $1 WHERE session_id = $2 RETURNING *',
+        [messageCount, sessionId]
+      );
+      return { data: result.rows[0], error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
+
+  addWelcomeMessage: async (sessionId: string, agentId: string, welcomeMessage: string) => {
+    try {
+      const db = await ensureDatabase();
+      const result = await db(
+        `INSERT INTO conversation_messages (session_id, message_type, content, timestamp)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [sessionId, 'bot', welcomeMessage, new Date().toISOString()]
+      );
+      return { data: result.rows[0], error: null };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
 };
 
 // تصدير كائن database يحتوي على جميع الدوال

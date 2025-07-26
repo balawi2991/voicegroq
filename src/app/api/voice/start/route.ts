@@ -75,6 +75,21 @@ export async function POST(request: NextRequest) {
     // بدء تتبع الجلسة مع الحد الأقصى للمدة
     startSession(sessionId, agentId, maxCallDuration);
 
+    // حفظ الرسالة الترحيبية في قاعدة البيانات إذا كانت موجودة
+    if (botConfig?.welcome_message && botConfig.welcome_message.trim()) {
+      try {
+        await database.conversations.addWelcomeMessage(
+          sessionId,
+          agentId,
+          botConfig.welcome_message
+        );
+        console.log('تم حفظ الرسالة الترحيبية في قاعدة البيانات');
+      } catch (welcomeError) {
+        console.error('خطأ في حفظ الرسالة الترحيبية:', welcomeError);
+        // لا نوقف العملية في حالة فشل حفظ الرسالة الترحيبية
+      }
+    }
+
     // إرجاع معرف الجلسة مع معلومات المدة
     return NextResponse.json({
       success: true,

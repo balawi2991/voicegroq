@@ -54,18 +54,19 @@ export interface FAQ {
 
 export interface Conversation {
   id: string;
-  sessionId: string;
-  agentId: string;
-  startedAt: string;
-  endedAt?: string;
-  messageCount: number;
+  session_id: string;
+  agent_id: string;
+  started_at: string;
+  ended_at?: string;
+  message_count: number;
+  user_satisfaction?: number;
 }
 
 export interface ConversationMessage {
   id: string;
-  sessionId: string;
-  role: 'user' | 'bot';
-  text: string;
+  session_id: string;
+  message_type: 'user' | 'bot';
+  content: string;
   timestamp: string;
 }
 

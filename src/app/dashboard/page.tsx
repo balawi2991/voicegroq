@@ -6,6 +6,7 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { VoiceBot } from '@/components/voice/VoiceBot';
 import { GlowButton } from '@/components/space/GlowButton';
+import { useStats } from '@/hooks/useStats';
 import {
   Copy,
   CheckCircle,
@@ -23,12 +24,7 @@ function DashboardContent() {
   const { user } = useAuth();
   const [embedCode, setEmbedCode] = useState('');
   const [copied, setCopied] = useState(false);
-  const [stats] = useState({
-    totalConversations: 47,
-    todayConversations: 12,
-    avgResponseTime: '1.2s',
-    satisfaction: '94%'
-  });
+  const { stats, isLoading: statsLoading, error: statsError } = useStats();
 
   useEffect(() => {
     if (user?.agentId) {
@@ -72,45 +68,77 @@ function DashboardContent() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
-            <div className="flex items-center gap-3 mb-2">
-              <MessageSquare className="w-8 h-8 text-blue-400" />
-              <div>
-                <div className="text-2xl font-bold text-white">{stats.totalConversations}</div>
-                <div className="text-sm text-gray-400">إجمالي المحادثات</div>
+          {statsLoading ? (
+            // حالة التحميل
+            Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 bg-gray-600 rounded animate-pulse"></div>
+                  <div>
+                    <div className="w-12 h-6 bg-gray-600 rounded animate-pulse mb-1"></div>
+                    <div className="w-20 h-4 bg-gray-600 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : statsError ? (
+            // حالة الخطأ
+            <div className="col-span-2 lg:col-span-4 bg-red-500/10 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-red-500/20">
+              <div className="text-red-400 text-center">
+                خطأ في تحميل الإحصائيات: {statsError.message}
               </div>
             </div>
-          </div>
+          ) : stats ? (
+            // عرض الإحصائيات
+            <>
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
+                <div className="flex items-center gap-3 mb-2">
+                  <MessageSquare className="w-8 h-8 text-blue-400" />
+                  <div>
+                    <div className="text-2xl font-bold text-white">{stats.totalConversations}</div>
+                    <div className="text-sm text-gray-400">إجمالي المحادثات</div>
+                  </div>
+                </div>
+              </div>
 
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
-            <div className="flex items-center gap-3 mb-2">
-              <Activity className="w-8 h-8 text-green-400" />
-              <div>
-                <div className="text-2xl font-bold text-white">{stats.todayConversations}</div>
-                <div className="text-sm text-gray-400">اليوم</div>
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
+                <div className="flex items-center gap-3 mb-2">
+                  <Activity className="w-8 h-8 text-green-400" />
+                  <div>
+                    <div className="text-2xl font-bold text-white">{stats.todayConversations}</div>
+                    <div className="text-sm text-gray-400">اليوم</div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
-            <div className="flex items-center gap-3 mb-2">
-              <Mic className="w-8 h-8 text-purple-400" />
-              <div>
-                <div className="text-2xl font-bold text-white">{stats.avgResponseTime}</div>
-                <div className="text-sm text-gray-400">متوسط الاستجابة</div>
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
+                <div className="flex items-center gap-3 mb-2">
+                  <Mic className="w-8 h-8 text-purple-400" />
+                  <div>
+                    <div className="text-2xl font-bold text-white">{stats.avgResponseTime}ث</div>
+                    <div className="text-sm text-gray-400">متوسط الاستجابة</div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
-            <div className="flex items-center gap-3 mb-2">
-              <CheckCircle className="w-8 h-8 text-cyan-400" />
-              <div>
-                <div className="text-2xl font-bold text-white">{stats.satisfaction}</div>
-                <div className="text-sm text-gray-400">معدل الرضا</div>
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
+                <div className="flex items-center gap-3 mb-2">
+                  <CheckCircle className="w-8 h-8 text-cyan-400" />
+                  <div>
+                    <div className="text-2xl font-bold text-white">{stats.satisfaction}%</div>
+                    <div className="text-sm text-gray-400">معدل الرضا</div>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            // حالة عدم وجود بيانات
+            <div className="col-span-2 lg:col-span-4 bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
+              <div className="text-gray-400 text-center">
+                لا توجد إحصائيات متاحة حالياً
               </div>
             </div>
-          </div>
+          )}
         </motion.div>
 
         {/* المحتوى الرئيسي */}

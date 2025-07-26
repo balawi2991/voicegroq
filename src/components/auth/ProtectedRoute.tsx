@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from './AuthProvider';
+import { useRouter } from 'next/navigation';
 import { SpaceBackground } from '@/components/space/StarField';
 import { Loader2 } from 'lucide-react';
 
@@ -12,13 +13,14 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, redirectTo = '/login' }: ProtectedRouteProps) {
   const { user, loading, isAuthenticated, error } = useAuth();
+  const router = useRouter();
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       console.log('User not authenticated, redirecting to:', redirectTo);
-      window.location.href = redirectTo;
+      router.replace(redirectTo);
     }
-  }, [loading, isAuthenticated, redirectTo]);
+  }, [loading, isAuthenticated, redirectTo, router]);
 
   useEffect(() => {
     if (error) {

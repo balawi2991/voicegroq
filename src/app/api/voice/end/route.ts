@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     endSession(sessionId);
 
     // تحديث الجلسة في قاعدة البيانات
-    const { data, error } = await database.conversations.endSession(sessionId);
+    const { data, error } = await database.conversations.endConversation(sessionId);
 
     if (error) {
       console.error('Error ending conversation session:', error);

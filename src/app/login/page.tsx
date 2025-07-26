@@ -6,7 +6,7 @@ import { SpaceBackground } from '@/components/space/StarField';
 import { GlowButton } from '@/components/space/GlowButton';
 import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
 import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/components/auth/AuthProvider';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {

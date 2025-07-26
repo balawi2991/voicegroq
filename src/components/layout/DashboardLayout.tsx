@@ -19,7 +19,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 interface DashboardLayoutProps {
@@ -63,6 +63,7 @@ const sidebarItems = [
 function DashboardContent({ children }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { user, signOut, loading, isAuthenticated } = useAuth();
   const { navigate, isNavigating, prefetchRoute } = useNavigation();
 
@@ -90,9 +91,9 @@ function DashboardContent({ children }: DashboardLayoutProps) {
   // إعادة توجيه إذا لم يكن مصادق عليه
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      window.location.href = '/login';
+      router.replace('/login');
     }
-  }, [loading, isAuthenticated]);
+  }, [loading, isAuthenticated, router]);
 
   // عرض loading أثناء التحقق من المصادقة
   if (loading) {

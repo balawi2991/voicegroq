@@ -77,7 +77,7 @@ async function processWithAI(text: string, agentId: string, sessionId: string): 
     
     // إعداد سياق المحادثة السابقة
     const conversationHistory = previousMessages?.map(msg => 
-      `${msg.role === 'user' ? 'المستخدم' : 'المساعد'}: ${msg.text}`
+      `${msg.message_type === 'user' ? 'المستخدم' : 'المساعد'}: ${msg.content}`
     ).join('\n') || '';
 
     // إعداد prompt لـ Gemini مع السياق الكامل
@@ -277,14 +277,16 @@ export async function POST(request: NextRequest) {
     // 4. حفظ الرسائل في قاعدة البيانات
     await database.conversations.addMessage({
       session_id: sessionId,
-      role: 'user',
-      text: userText,
+      message_type: 'user',
+      content: userText,
+      timestamp: new Date().toISOString(),
     });
 
     await database.conversations.addMessage({
       session_id: sessionId,
-      role: 'bot',
-      text: botResponse,
+      message_type: 'bot',
+      content: botResponse,
+      timestamp: new Date().toISOString(),
     });
 
     // تحديث عداد الرسائل في جدول المحادثات

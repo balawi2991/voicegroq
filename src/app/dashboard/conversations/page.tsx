@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { GlowButton } from '@/components/space/GlowButton';
+import { useConversations, useConversationDetails } from '@/hooks/useConversations';
 import { 
   MessageSquare, 
   Search, 
@@ -12,170 +13,229 @@ import {
   Clock,
   User,
   Download,
-  RefreshCw
+  RefreshCw,
+  MessageCircle
 } from 'lucide-react';
 
 interface ConversationMessage {
   id: string;
-  role: 'user' | 'bot';
-  text: string;
+  message_type: 'user' | 'bot';
+  content: string;
   timestamp: string;
 }
 
-interface Conversation {
+interface ConversationItem {
   id: string;
   sessionId: string;
-  startedAt: string;
+  createdAt: string;
   endedAt?: string;
-  duration: string;
+  duration: number; // بالدقائق
   messageCount: number;
-  messages: ConversationMessage[];
   userLocation?: string;
+  firstMessage?: {
+    content: string;
+    timestamp: string;
+  };
+  lastBotMessage?: {
+    content: string;
+    timestamp: string;
+  };
+  satisfaction?: number;
+  isActive: boolean;
+  messages?: ConversationMessage[];
 }
 
 export default function ConversationsPage() {
-  const [conversations] = useState<Conversation[]>([
+  const { conversations, isLoading, error } = useConversations();
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const { conversationDetails, isLoading: detailsLoading } = useConversationDetails(selectedSessionId);
+  
+  // البيانات الوهمية للاختبار (يمكن إزالتها لاحقاً)
+  const [fallbackConversations] = useState<ConversationItem[]>([
     {
       id: '1',
       sessionId: 'session_001',
-      startedAt: '2024-01-15 14:30:00',
+      createdAt: '2024-01-15 14:30:00',
       endedAt: '2024-01-15 14:35:00',
-      duration: '5 دقائق',
+      duration: 5,
       messageCount: 8,
       userLocation: 'الرياض',
+      firstMessage: {
+        content: 'ما هي ساعات العمل؟',
+        timestamp: '2024-01-15 14:30:15'
+      },
+      lastBotMessage: {
+        content: 'التوصيل مجاني للطلبات أكثر من 200 ريال، وإلا فالتكلفة 25 ريال.',
+        timestamp: '2024-01-15 14:32:05'
+      },
+      isActive: false,
       messages: [
         {
           id: '1',
-          role: 'bot',
-          text: 'مرحباً، أنا مساعد ذكي. كيف يمكنني مساعدتك؟',
-          timestamp: '14:30:00'
+          message_type: 'bot',
+          content: 'مرحباً، أنا مساعد ذكي. كيف يمكنني مساعدتك؟',
+          timestamp: '2024-01-15T14:30:00.000Z'
         },
         {
           id: '2',
-          role: 'user',
-          text: 'ما هي ساعات العمل؟',
-          timestamp: '14:30:15'
+          message_type: 'user',
+          content: 'ما هي ساعات العمل؟',
+          timestamp: '2024-01-15T14:30:15.000Z'
         },
         {
           id: '3',
-          role: 'bot',
-          text: 'نعمل من الأحد إلى الخميس من 9 صباحاً حتى 6 مساءً بتوقيت الرياض.',
-          timestamp: '14:30:18'
+          message_type: 'bot',
+          content: 'نعمل من الأحد إلى الخميس من 9 صباحاً حتى 6 مساءً بتوقيت الرياض.',
+          timestamp: '2024-01-15T14:30:18.000Z'
         },
         {
           id: '4',
-          role: 'user',
-          text: 'هل تقدمون خدمة التوصيل؟',
-          timestamp: '14:31:00'
+          message_type: 'user',
+          content: 'هل تقدمون خدمة التوصيل؟',
+          timestamp: '2024-01-15T14:31:00.000Z'
         },
         {
           id: '5',
-          role: 'bot',
-          text: 'نعم، نقدم خدمة التوصيل لجميع مناطق المملكة خلال 2-3 أيام عمل.',
-          timestamp: '14:31:03'
+          message_type: 'bot',
+          content: 'نعم، نقدم خدمة التوصيل لجميع مناطق المملكة خلال 2-3 أيام عمل.',
+          timestamp: '2024-01-15T14:31:03.000Z'
         },
         {
           id: '6',
-          role: 'user',
-          text: 'كم تكلفة التوصيل؟',
-          timestamp: '14:32:00'
+          message_type: 'user',
+          content: 'كم تكلفة التوصيل؟',
+          timestamp: '2024-01-15T14:32:00.000Z'
         },
         {
           id: '7',
-          role: 'bot',
-          text: 'التوصيل مجاني للطلبات أكثر من 200 ريال، وإلا فالتكلفة 25 ريال.',
-          timestamp: '14:32:05'
+          message_type: 'bot',
+          content: 'التوصيل مجاني للطلبات أكثر من 200 ريال، وإلا فالتكلفة 25 ريال.',
+          timestamp: '2024-01-15T14:32:05.000Z'
         },
         {
           id: '8',
-          role: 'user',
-          text: 'شكراً لك',
-          timestamp: '14:35:00'
+          message_type: 'user',
+          content: 'شكراً لك',
+          timestamp: '2024-01-15T14:35:00.000Z'
         }
       ]
     },
     {
       id: '2',
       sessionId: 'session_002',
-      startedAt: '2024-01-15 16:45:00',
-      endedAt: '2024-01-15 16:47:00',
-      duration: '2 دقيقة',
-      messageCount: 4,
+      createdAt: '2024-01-14 10:15:00',
+      endedAt: '2024-01-14 10:18:00',
+      duration: 3,
+      messageCount: 3,
       userLocation: 'جدة',
+      firstMessage: {
+        content: 'أريد معرفة المزيد عن منتجاتكم',
+        timestamp: '2024-01-14 10:15:30'
+      },
+      lastBotMessage: {
+        content: 'بالطبع! لدينا مجموعة واسعة من المنتجات عالية الجودة. هل تبحث عن فئة معينة؟',
+        timestamp: '2024-01-14 10:15:35'
+      },
+      isActive: false,
       messages: [
         {
-          id: '1',
-          role: 'bot',
-          text: 'مرحباً، أنا مساعد ذكي. كيف يمكنني مساعدتك؟',
-          timestamp: '16:45:00'
+          id: '9',
+          message_type: 'bot',
+          content: 'أهلاً وسهلاً! كيف يمكنني مساعدتك اليوم؟',
+          timestamp: '2024-01-14T10:15:00.000Z'
         },
         {
-          id: '2',
-          role: 'user',
-          text: 'كيف يمكنني التواصل معكم؟',
-          timestamp: '16:45:30'
+          id: '10',
+          message_type: 'user',
+          content: 'أريد معرفة المزيد عن منتجاتكم',
+          timestamp: '2024-01-14T10:15:30.000Z'
         },
         {
-          id: '3',
-          role: 'bot',
-          text: 'يمكنك التواصل معنا عبر البريد الإلكتروني info@company.com أو الهاتف 920000000',
-          timestamp: '16:45:35'
-        },
-        {
-          id: '4',
-          role: 'user',
-          text: 'ممتاز، شكراً',
-          timestamp: '16:47:00'
-        }
-      ]
-    },
-    {
-      id: '3',
-      sessionId: 'session_003',
-      startedAt: '2024-01-14 10:15:00',
-      duration: '1 دقيقة',
-      messageCount: 2,
-      userLocation: 'الدمام',
-      messages: [
-        {
-          id: '1',
-          role: 'bot',
-          text: 'مرحباً، أنا مساعد ذكي. كيف يمكنني مساعدتك؟',
-          timestamp: '10:15:00'
-        },
-        {
-          id: '2',
-          role: 'user',
-          text: 'مرحبا',
-          timestamp: '10:16:00'
+          id: '11',
+          message_type: 'bot',
+          content: 'بالطبع! لدينا مجموعة واسعة من المنتجات عالية الجودة. هل تبحث عن فئة معينة؟',
+          timestamp: '2024-01-14T10:15:35.000Z'
         }
       ]
     }
   ]);
 
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(conversations[0]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
 
-  const filteredConversations = conversations.filter(conv => {
+  // استخدام البيانات الحقيقية أو الوهمية كبديل
+  const displayConversations = conversations || fallbackConversations;
+
+
+  
+  const filteredConversations = displayConversations.filter(conv => {
     const matchesSearch = searchTerm === '' || 
-      conv.messages.some(msg => 
-        msg.text.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      (conv.firstMessage?.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+       conv.lastBotMessage?.content.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesDate = filterDate === '' || 
-      conv.startedAt.includes(filterDate);
+      conv.createdAt.includes(filterDate);
     
     return matchesSearch && matchesDate;
   });
 
-  const formatTime = (timestamp: string) => {
-    return timestamp.split(' ')[1] || timestamp;
+  const formatTime = (timestamp: string | undefined) => {
+    if (!timestamp) return '';
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        // إذا كان التاريخ غير صالح، حاول استخراج الوقت من النص
+        const timePart = timestamp.split(' ')[1] || timestamp.split('T')[1];
+        return timePart ? timePart.substring(0, 8) : timestamp;
+      }
+      return date.toLocaleTimeString('ar-SA', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+    } catch (error) {
+      return timestamp;
+    }
   };
 
   const formatDate = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('ar-SA');
+    if (!timestamp) return 'غير محدد';
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        // إذا كان التاريخ غير صالح، حاول تنسيقه يدوياً
+        const datePart = timestamp.split(' ')[0] || timestamp.split('T')[0];
+        return datePart || timestamp;
+      }
+      return date.toLocaleDateString('ar-SA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      return timestamp;
+    }
+  };
+
+  const formatDateTime = (timestamp: string) => {
+    if (!timestamp) return 'غير محدد';
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return timestamp;
+      }
+      return date.toLocaleString('ar-SA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    } catch (error) {
+      return timestamp;
+    }
   };
 
   const exportConversations = () => {
@@ -223,29 +283,43 @@ export default function ConversationsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-            <div className="text-2xl font-bold text-white">{conversations.length}</div>
-            <div className="text-sm text-gray-400">إجمالي المحادثات</div>
-          </div>
-          
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-            <div className="text-2xl font-bold text-green-400">
-              {conversations.filter(c => c.endedAt).length}
-            </div>
-            <div className="text-sm text-gray-400">مكتملة</div>
-          </div>
-          
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-            <div className="text-2xl font-bold text-blue-400">
-              {Math.round(conversations.reduce((acc, c) => acc + c.messageCount, 0) / conversations.length)}
-            </div>
-            <div className="text-sm text-gray-400">متوسط الرسائل</div>
-          </div>
-          
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-            <div className="text-2xl font-bold text-purple-400">3.4</div>
-            <div className="text-sm text-gray-400">متوسط المدة (دقيقة)</div>
-          </div>
+          {isLoading ? (
+            // حالة التحميل
+            Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="w-12 h-6 bg-gray-600 rounded animate-pulse mb-1"></div>
+                <div className="w-20 h-4 bg-gray-600 rounded animate-pulse"></div>
+              </div>
+            ))
+          ) : (
+            <>
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="text-2xl font-bold text-white">{displayConversations.length}</div>
+                <div className="text-sm text-gray-400">إجمالي المحادثات</div>
+              </div>
+              
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="text-2xl font-bold text-green-400">
+                  {displayConversations.filter(c => c.endedAt).length}
+                </div>
+                <div className="text-sm text-gray-400">مكتملة</div>
+              </div>
+              
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="text-2xl font-bold text-blue-400">
+                  {displayConversations.length > 0 ? Math.round(displayConversations.reduce((acc, c) => acc + c.messageCount, 0) / displayConversations.length) : 0}
+                </div>
+                <div className="text-sm text-gray-400">متوسط الرسائل</div>
+              </div>
+              
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                <div className="text-2xl font-bold text-purple-400">
+                  {displayConversations.length > 0 ? Math.round(displayConversations.reduce((acc, c) => acc + c.duration, 0) / displayConversations.length) : 0}
+                </div>
+                <div className="text-sm text-gray-400">متوسط المدة (دقيقة)</div>
+              </div>
+            </>
+          )}
         </motion.div>
 
         {/* أدوات البحث والتصفية */}
@@ -295,45 +369,73 @@ export default function ConversationsPage() {
             </div>
             
             <div className="max-h-[600px] overflow-y-auto">
-              {filteredConversations.map((conversation) => (
-                <motion.div
-                  key={conversation.id}
-                  className={`p-4 border-b border-white/5 cursor-pointer transition-all ${
-                    selectedConversation?.id === conversation.id
-                      ? 'bg-blue-500/20 border-r-4 border-r-blue-500'
-                      : 'hover:bg-white/5'
-                  }`}
-                  onClick={() => setSelectedConversation(conversation)}
-                  whileHover={{ x: 4 }}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-400">
-                        {conversation.userLocation || 'غير محدد'}
+              {isLoading ? (
+                // حالة التحميل
+                Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="p-4 border-b border-white/5">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="w-20 h-4 bg-gray-600 rounded animate-pulse"></div>
+                      <div className="w-16 h-3 bg-gray-600 rounded animate-pulse"></div>
+                    </div>
+                    <div className="w-full h-4 bg-gray-600 rounded animate-pulse mb-2"></div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-3 bg-gray-600 rounded animate-pulse"></div>
+                      <div className="w-12 h-3 bg-gray-600 rounded animate-pulse"></div>
+                    </div>
+                  </div>
+                ))
+              ) : error ? (
+                <div className="p-4 text-center">
+                  <p className="text-red-400">خطأ في تحميل المحادثات</p>
+                </div>
+              ) : filteredConversations.length === 0 ? (
+                <div className="p-4 text-center">
+                  <p className="text-gray-400">لا توجد محادثات</p>
+                </div>
+              ) : (
+                filteredConversations.map((conversation) => (
+                  <motion.div
+                    key={conversation.id}
+                    className={`p-4 border-b border-white/5 cursor-pointer transition-all ${
+                      selectedConversationId === conversation.id
+                        ? 'bg-blue-500/20 border-r-4 border-r-blue-500'
+                        : 'hover:bg-white/5'
+                    }`}
+                    onClick={() => {
+                      setSelectedConversationId(conversation.id);
+                      setSelectedSessionId(conversation.sessionId);
+                    }}
+                    whileHover={{ x: 4 }}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-400">
+                          {conversation.userLocation || 'غير محدد'}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {formatDate(conversation.createdAt)}
                       </span>
                     </div>
-                    <span className="text-xs text-gray-500">
-                      {formatDate(conversation.startedAt)}
-                    </span>
-                  </div>
-                  
-                  <div className="text-white font-medium mb-1 truncate">
-                    {conversation.messages[1]?.text || 'محادثة جديدة'}
-                  </div>
-                  
-                  <div className="flex items-center gap-4 text-xs text-gray-400">
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="w-3 h-3" />
-                      {conversation.messageCount}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {conversation.duration}
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
+                    
+                    <div className="text-white font-medium mb-1 truncate">
+                      {conversation.sessionId || `محادثة ${conversation.id}`}
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-xs text-gray-400">
+                      <span className="flex items-center gap-1">
+                        <MessageSquare className="w-3 h-3" />
+                        {conversation.messageCount}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {conversation.duration} دقيقة
+                      </span>
+                    </div>
+                  </motion.div>
+                ))
+              )}
             </div>
           </motion.div>
 
@@ -344,60 +446,90 @@ export default function ConversationsPage() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
           >
-            {selectedConversation ? (
-              <>
-                {/* رأس المحادثة */}
-                <div className="p-6 border-b border-white/10">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xl font-bold text-white mb-2">
-                        تفاصيل المحادثة
-                      </h3>
-                      <div className="flex items-center gap-4 text-sm text-gray-400">
-                        <span>بدأت: {formatDate(selectedConversation.startedAt)} - {formatTime(selectedConversation.startedAt)}</span>
-                        {selectedConversation.endedAt && (
-                          <span>انتهت: {formatTime(selectedConversation.endedAt)}</span>
-                        )}
-                        <span>المدة: {selectedConversation.duration}</span>
+            {selectedConversationId && selectedSessionId ? (
+              detailsLoading ? (
+                <div className="flex items-center justify-center h-[400px]">
+                  <div className="text-center">
+                    <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-400">جاري تحميل تفاصيل المحادثة...</p>
+                  </div>
+                </div>
+              ) : conversationDetails ? (
+                <>
+                  {/* رأس المحادثة */}
+                  <div className="p-6 border-b border-white/10">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xl font-bold text-white mb-2">
+                          تفاصيل المحادثة
+                        </h3>
+                        <div className="flex items-center gap-4 text-sm text-gray-400">
+                           <span>بدأت: {formatDateTime(conversationDetails.createdAt)}</span>
+                           {conversationDetails.endedAt && (
+                             <span>انتهت: {formatDateTime(conversationDetails.endedAt)}</span>
+                           )}
+                           <span>المدة: {conversationDetails.duration} دقيقة</span>
+                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="text-sm text-gray-400">الموقع</div>
-                      <div className="text-white font-medium">
-                        {selectedConversation.userLocation || 'غير محدد'}
+                      
+                      <div className="text-right">
+                        <div className="text-sm text-gray-400">الجلسة</div>
+                        <div className="text-white font-medium">
+                           {conversationDetails.sessionId}
+                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* الرسائل */}
-                <div className="p-6 max-h-[500px] overflow-y-auto">
-                  <div className="space-y-4">
-                    {selectedConversation.messages.map((message) => (
-                      <motion.div
-                        key={message.id}
-                        className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                      >
-                        <div className={`max-w-[80%] p-4 rounded-xl ${
-                          message.role === 'user'
-                            ? 'bg-blue-500/20 text-white'
-                            : 'bg-white/10 text-gray-100'
-                        }`}>
-                          <div className="text-sm mb-1">
-                            {message.text}
-                          </div>
-                          <div className="text-xs opacity-60">
-                            {formatTime(message.timestamp)}
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
+                  {/* الرسائل */}
+                  <div className="p-6 max-h-[500px] overflow-y-auto">
+                    <div className="space-y-4">
+                       {conversationDetails.messages && conversationDetails.messages.length > 0 ? (
+                         // ترتيب الرسائل حسب التاريخ (من الأقدم إلى الأحدث)
+                         conversationDetails.messages
+                           .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+                           .map((message, index) => (
+                             <motion.div
+                               key={message.id || index}
+                               className={`flex ${message.message_type === 'user' ? 'justify-end' : 'justify-start'}`}
+                               initial={{ opacity: 0, y: 10 }}
+                               animate={{ opacity: 1, y: 0 }}
+                               transition={{ delay: index * 0.1 }}
+                             >
+                               <div className={`max-w-[80%] p-4 rounded-xl ${
+                                 message.message_type === 'user'
+                                   ? 'bg-blue-500/20 text-white border border-blue-500/30'
+                                   : 'bg-white/10 text-gray-100 border border-white/20'
+                               }`}>
+                                 <div className="text-sm mb-2 leading-relaxed">
+                                   {message.content}
+                                 </div>
+                                 <div className="text-xs opacity-60 flex items-center gap-2">
+                                   <span className={`w-2 h-2 rounded-full ${
+                                     message.message_type === 'user' ? 'bg-blue-400' : 'bg-green-400'
+                                   }`}></span>
+                                   {formatTime(message.timestamp)}
+                                 </div>
+                               </div>
+                             </motion.div>
+                           ))
+                       ) : (
+                         <div className="text-center py-8">
+                           <MessageCircle className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+                           <p className="text-gray-400">لا توجد رسائل في هذه المحادثة</p>
+                         </div>
+                       )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-[400px]">
+                  <div className="text-center">
+                    <MessageCircle className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-400">خطأ في تحميل تفاصيل المحادثة</p>
                   </div>
                 </div>
-              </>
+              )
             ) : (
               <div className="flex items-center justify-center h-[400px]">
                 <div className="text-center">

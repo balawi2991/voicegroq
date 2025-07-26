@@ -6,10 +6,12 @@ import { SpaceBackground } from '@/components/space/StarField';
 import { GlowButton } from '@/components/space/GlowButton';
 import { Mail, Lock, Eye, EyeOff, UserPlus, User } from 'lucide-react';
 import Link from 'next/link';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useRouter } from 'next/navigation';
 
 export default function SignupPage() {
   const { signUp } = useAuth();
+  const router = useRouter();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -57,7 +59,7 @@ export default function SignupPage() {
 
       if (user) {
         // إعادة توجيه للوحة التحكم
-        window.location.href = '/dashboard';
+        router.replace('/dashboard');
       }
     } catch (err: any) {
       setError(err.message || 'فشل في إنشاء الحساب. حاول مرة أخرى.');

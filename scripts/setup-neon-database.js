@@ -85,8 +85,15 @@ async function setupDatabase() {
         session_id TEXT NOT NULL,
         started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         ended_at TIMESTAMP WITH TIME ZONE,
-        user_satisfaction INTEGER
+        user_satisfaction INTEGER,
+        message_count INTEGER DEFAULT 0
       );
+    `);
+    
+    // إضافة حقل message_count إذا لم يكن موجوداً
+    await pool.query(`
+      ALTER TABLE conversations 
+      ADD COLUMN IF NOT EXISTS message_count INTEGER DEFAULT 0;
     `);
     console.log('✅ Conversations table created successfully');
 
