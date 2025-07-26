@@ -393,7 +393,9 @@ export default function ConversationsPage() {
                   <p className="text-gray-400">لا توجد محادثات</p>
                 </div>
               ) : (
-                filteredConversations.map((conversation) => (
+                filteredConversations
+                  .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+                  .map((conversation, index) => (
                   <motion.div
                     key={conversation.id}
                     className={`p-4 border-b border-white/5 cursor-pointer transition-all ${
@@ -420,7 +422,7 @@ export default function ConversationsPage() {
                     </div>
                     
                     <div className="text-white font-medium mb-1 truncate">
-                      {conversation.sessionId || `محادثة ${conversation.id}`}
+                      المحادثة {index + 1}
                     </div>
                     
                     <div className="flex items-center gap-4 text-xs text-gray-400">
