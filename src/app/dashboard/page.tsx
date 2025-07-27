@@ -17,14 +17,16 @@ import {
   ExternalLink,
   Code,
   Activity,
-  TestTube
+  TestTube,
+  Clock
 } from 'lucide-react';
 
 function DashboardContent() {
   const { user } = useAuth();
   const [embedCode, setEmbedCode] = useState('');
   const [copied, setCopied] = useState(false);
-  const { stats, isLoading: statsLoading, error: statsError } = useStats();
+  const { stats, isLoading: statsLoading, error: statsError, forceRefresh, triggerUpdate } = useStats();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     if (user?.agentId) {
@@ -44,6 +46,22 @@ function DashboardContent() {
     }
   };
 
+  const handleRefreshStats = async () => {
+    setIsRefreshing(true);
+    try {
+      await forceRefresh();
+    } catch (err) {
+      console.error('فشل في تحديث الإحصائيات:', err);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500); // تأخير بسيط لإظهار التحديث
+    }
+  };
+
+  // تحديث الإحصائيات عند تحميل المكون
+  useEffect(() => {
+    handleRefreshStats();
+  }, []);
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
@@ -62,15 +80,28 @@ function DashboardContent() {
         </motion.div>
 
         {/* الإحصائيات */}
-        <motion.div
-          className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white">الإحصائيات</h2>
+            <button
+              onClick={handleRefreshStats}
+              disabled={isRefreshing || statsLoading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm text-white transition-colors"
+            >
+              <Activity className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? 'جاري التحديث...' : 'تحديث'}
+            </button>
+          </div>
+          
+          <motion.div
+            className="grid grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
           {statsLoading ? (
             // حالة التحميل
-            Array.from({ length: 4 }).map((_, index) => (
+            Array.from({ length: 3 }).map((_, index) => (
               <div key={index} className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-8 h-8 bg-gray-600 rounded animate-pulse"></div>
@@ -83,7 +114,7 @@ function DashboardContent() {
             ))
           ) : statsError ? (
             // حالة الخطأ
-            <div className="col-span-2 lg:col-span-4 bg-red-500/10 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-red-500/20">
+            <div className="col-span-2 lg:col-span-3 bg-red-500/10 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-red-500/20">
               <div className="text-red-400 text-center">
                 خطأ في تحميل الإحصائيات: {statsError.message}
               </div>
@@ -113,33 +144,24 @@ function DashboardContent() {
 
               <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
                 <div className="flex items-center gap-3 mb-2">
-                  <Mic className="w-8 h-8 text-purple-400" />
+                  <Clock className="w-8 h-8 text-orange-400" />
                   <div>
-                    <div className="text-2xl font-bold text-white">{stats.avgResponseTime}ث</div>
-                    <div className="text-sm text-gray-400">متوسط الاستجابة</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
-                <div className="flex items-center gap-3 mb-2">
-                  <CheckCircle className="w-8 h-8 text-cyan-400" />
-                  <div>
-                    <div className="text-2xl font-bold text-white">{stats.satisfaction}%</div>
-                    <div className="text-sm text-gray-400">معدل الرضا</div>
+                    <div className="text-2xl font-bold text-white">0 / 50 دقيقة</div>
+                    <div className="text-sm text-gray-400">الدقائق المستهلكة هذا الشهر</div>
                   </div>
                 </div>
               </div>
             </>
           ) : (
             // حالة عدم وجود بيانات
-            <div className="col-span-2 lg:col-span-4 bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
+            <div className="col-span-2 lg:col-span-3 bg-white/5 backdrop-blur-sm rounded-xl p-4 lg:p-6 border border-white/10">
               <div className="text-gray-400 text-center">
                 لا توجد إحصائيات متاحة حالياً
               </div>
             </div>
           )}
-        </motion.div>
+          </motion.div>
+        </div>
 
         {/* المحتوى الرئيسي */}
         <div className="grid lg:grid-cols-2 gap-8">

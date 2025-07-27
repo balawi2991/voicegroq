@@ -12,8 +12,6 @@ import {
   Trash2,
   Save,
   X,
-  ToggleLeft,
-  ToggleRight,
   MessageSquare
 } from 'lucide-react';
 
@@ -21,7 +19,6 @@ interface FAQ {
   id: string;
   question: string;
   answer: string;
-  isActive: boolean;
   createdAt: string;
 }
 
@@ -49,7 +46,6 @@ export default function FAQPage() {
             id: faq.id,
             question: faq.question,
             answer: faq.answer,
-            isActive: faq.is_active,
             createdAt: new Date(faq.created_at).toISOString().split('T')[0]
           }));
           setFaqs(formattedFAQs);
@@ -75,8 +71,7 @@ export default function FAQPage() {
         },
         body: JSON.stringify({
           question: newFaq.question,
-          answer: newFaq.answer,
-          isActive: true
+          answer: newFaq.answer
         })
       });
 
@@ -87,7 +82,6 @@ export default function FAQPage() {
           id: result.data.id,
           question: result.data.question,
           answer: result.data.answer,
-          isActive: result.data.is_active,
           createdAt: new Date(result.data.created_at).toISOString().split('T')[0]
         };
         setFaqs(prev => [newFaqItem, ...prev]);
@@ -114,8 +108,7 @@ export default function FAQPage() {
         body: JSON.stringify({
           id,
           question: updates.question,
-          answer: updates.answer,
-          isActive: updates.isActive
+          answer: updates.answer
         })
       });
 
@@ -166,12 +159,7 @@ export default function FAQPage() {
     setEditingFaq(null);
   };
 
-  const toggleActive = (id: string) => {
-    const faq = faqs.find(f => f.id === id);
-    if (faq) {
-      updateFaq(id, { isActive: !faq.isActive });
-    }
-  };
+
 
   return (
     <DashboardLayout>
@@ -213,23 +201,23 @@ export default function FAQPage() {
           
           <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
             <div className="text-2xl font-bold text-green-400">
-              {faqs.filter(f => f.isActive).length}
+              {faqs.length}
             </div>
-            <div className="text-sm text-gray-400">مفعلة</div>
-          </div>
-          
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-            <div className="text-2xl font-bold text-yellow-400">
-              {faqs.filter(f => !f.isActive).length}
-            </div>
-            <div className="text-sm text-gray-400">معطلة</div>
+            <div className="text-sm text-gray-400">متاحة</div>
           </div>
           
           <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
             <div className="text-2xl font-bold text-blue-400">
-              {Math.round((faqs.filter(f => f.isActive).length / faqs.length) * 100) || 0}%
+              {faqs.length > 0 ? Math.round(faqs.reduce((acc, faq) => acc + faq.answer.length, 0) / faqs.length) : 0}
             </div>
-            <div className="text-sm text-gray-400">معدل التفعيل</div>
+            <div className="text-sm text-gray-400">متوسط طول الإجابة</div>
+          </div>
+          
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+            <div className="text-2xl font-bold text-purple-400">
+              {new Date().toLocaleDateString('ar-SA', { month: 'long' })}
+            </div>
+            <div className="text-sm text-gray-400">الشهر الحالي</div>
           </div>
         </motion.div>
 
@@ -266,11 +254,7 @@ export default function FAQPage() {
                 {faqs.map((faq) => (
                   <motion.div
                     key={faq.id}
-                    className={`p-6 rounded-xl border transition-all ${
-                      faq.isActive 
-                        ? 'bg-white/5 border-white/20' 
-                        : 'bg-white/2 border-white/10 opacity-60'
-                    }`}
+                    className="p-6 rounded-xl border transition-all bg-white/5 border-white/20"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     layout
@@ -339,18 +323,6 @@ export default function FAQPage() {
                           
                           <div className="flex items-center gap-2 mr-4">
                             <button
-                              onClick={() => toggleActive(faq.id)}
-                              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                              title={faq.isActive ? 'تعطيل' : 'تفعيل'}
-                            >
-                              {faq.isActive ? (
-                                <ToggleRight className="w-5 h-5 text-green-400" />
-                              ) : (
-                                <ToggleLeft className="w-5 h-5 text-gray-400" />
-                              )}
-                            </button>
-                            
-                            <button
                               onClick={() => setEditingFaq(faq)}
                               className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                               title="تحرير"
@@ -370,12 +342,8 @@ export default function FAQPage() {
                         
                         <div className="flex items-center gap-4 text-sm text-gray-400">
                           <span>تم الإنشاء: {faq.createdAt}</span>
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            faq.isActive 
-                              ? 'bg-green-500/20 text-green-400' 
-                              : 'bg-gray-500/20 text-gray-400'
-                          }`}>
-                            {faq.isActive ? 'مفعل' : 'معطل'}
+                          <span className="px-2 py-1 rounded-full text-xs bg-green-500/20 text-green-400">
+                            متاح
                           </span>
                         </div>
                       </div>

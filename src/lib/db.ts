@@ -80,6 +80,7 @@ export interface KnowledgeFile {
   file_type: string;
   file_size: number;
   uploaded_at: string;
+  status?: string;
 }
 
 export interface FAQ {

@@ -62,13 +62,33 @@ export async function POST(
       );
     }
 
+    // معالجة المحتوى حسب نوع الملف
+    let processedContent = content;
+    let status = 'ready';
+
+    if (fileType === 'pdf') {
+      // للملفات PDF، نحفظ المحتوى كما هو (base64)
+      // في المستقبل يمكن إضافة استخراج النص من PDF هنا
+      processedContent = content;
+      status = 'ready'; // أو 'processing' إذا كنا نريد معالجة لاحقة
+    } else {
+      // للملفات النصية، نتأكد من أن المحتوى نص صالح
+      if (typeof content !== 'string') {
+        return NextResponse.json(
+          { error: 'Invalid content format for text file' },
+          { status: 400 }
+        );
+      }
+      processedContent = content;
+    }
+
     const { data, error } = await database.knowledgeFiles.create({
       agent_id: agentId,
-      file_name: fileName,
+      filename: fileName,
       file_type: fileType,
-      content: content,
+      content: processedContent,
       file_size: fileSize || 0,
-      status: 'ready'
+      status: status
     });
 
     if (error) {

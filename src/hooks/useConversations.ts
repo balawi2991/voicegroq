@@ -1,7 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
-import { useAuth } from './useAuth';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface ConversationMessage {
   content: string;

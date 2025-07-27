@@ -57,8 +57,15 @@ async function setupDatabase() {
         content TEXT NOT NULL,
         file_type TEXT NOT NULL,
         file_size INTEGER,
+        status TEXT DEFAULT 'ready',
         uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
+    `);
+    
+    // إضافة عمود status إذا لم يكن موجوداً
+    await pool.query(`
+      ALTER TABLE knowledge_files 
+      ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ready';
     `);
     console.log('✅ Knowledge files table created successfully');
 

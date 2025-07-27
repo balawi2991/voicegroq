@@ -31,15 +31,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // جلب المستخدم الحالي من localStorage
     const getUser = async () => {
       try {
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-          const userData = JSON.parse(storedUser);
-          setUser(userData);
+        // التحقق من توفر localStorage
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const storedUser = localStorage.getItem('currentUser');
+          if (storedUser) {
+            const userData = JSON.parse(storedUser);
+            setUser(userData);
+          } else {
+            setUser(null);
+          }
         } else {
           setUser(null);
         }
       } catch (err: any) {
-        setError(err.message);
+        console.warn('localStorage access denied or unavailable:', err.message);
         setUser(null);
       } finally {
         setLoading(false);
@@ -80,7 +85,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       setUser(authUser);
-      localStorage.setItem('currentUser', JSON.stringify(authUser));
+      
+      // حفظ بيانات المستخدم في localStorage مع معالجة الأخطاء
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem('currentUser', JSON.stringify(authUser));
+        }
+      } catch (storageErr: any) {
+        console.warn('Failed to save user data to localStorage:', storageErr.message);
+      }
 
       return { user: authUser };
     } catch (err: any) {
@@ -124,7 +137,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       setUser(authUser);
-      localStorage.setItem('currentUser', JSON.stringify(authUser));
+      
+      // حفظ بيانات المستخدم في localStorage مع معالجة الأخطاء
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem('currentUser', JSON.stringify(authUser));
+        }
+      } catch (storageErr: any) {
+        console.warn('Failed to save user data to localStorage:', storageErr.message);
+      }
 
       return { user: authUser };
     } catch (err: any) {
@@ -140,7 +161,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       setUser(null);
-      localStorage.removeItem('currentUser');
+      
+      // إزالة بيانات المستخدم من localStorage مع معالجة الأخطاء
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.removeItem('currentUser');
+        }
+      } catch (storageErr: any) {
+        console.warn('Failed to remove user data from localStorage:', storageErr.message);
+      }
+      
       router.replace('/');
     } catch (err: any) {
       setError(err.message);

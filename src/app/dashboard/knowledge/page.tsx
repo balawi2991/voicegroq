@@ -34,7 +34,14 @@ export default function KnowledgePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [textContent, setTextContent] = useState('');
+  const [textTitle, setTextTitle] = useState('');
   const [showTextModal, setShowTextModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<string | null>(null);
+  const [fileToDeleteName, setFileToDeleteName] = useState<string>('');
+  const [showFileModal, setShowFileModal] = useState(false);
+  const [fileTitle, setFileTitle] = useState('');
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // جلب ملفات المعرفة من قاعدة البيانات
@@ -51,7 +58,7 @@ export default function KnowledgePage() {
           // تحويل البيانات من قاعدة البيانات إلى تنسيق المكون
           const formattedFiles: KnowledgeFile[] = result.data.map((file: any) => ({
             id: file.id,
-            name: file.file_name,
+            name: file.filename,
             type: file.file_type as 'pdf' | 'txt' | 'md',
             size: formatFileSize(file.file_size || 0),
             uploadedAt: new Date(file.uploaded_at).toISOString().split('T')[0],
@@ -70,71 +77,114 @@ export default function KnowledgePage() {
   }, [user?.agentId]);
 
   const handleFileUpload = async (uploadedFiles: FileList | null) => {
-    if (!uploadedFiles || !user?.agentId) return;
-
-    setIsUploading(true);
-
-    for (let i = 0; i < uploadedFiles.length; i++) {
-      const file = uploadedFiles[i];
-
-      // التحقق من نوع الملف
-      const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown'];
-      if (!allowedTypes.includes(file.type) && !file.name.endsWith('.md')) {
-        alert(`نوع الملف ${file.name} غير مدعوم`);
-        continue;
-      }
-
-      try {
-        // قراءة محتوى الملف
-        const content = await readFileContent(file);
-
-        // رفع الملف إلى قاعدة البيانات
-        const response = await fetch(`/api/knowledge/${user.agentId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            fileName: file.name,
-            fileType: file.name.endsWith('.pdf') ? 'pdf' : file.name.endsWith('.md') ? 'md' : 'txt',
-            content: content,
-            fileSize: file.size
-          })
-        });
-
-        const result = await response.json();
-
-        if (result.success) {
-          // إضافة الملف للقائمة
-          const newFile: KnowledgeFile = {
-            id: result.data.id,
-            name: result.data.file_name,
-            type: result.data.file_type as 'pdf' | 'txt' | 'md',
-            size: formatFileSize(result.data.file_size || 0),
-            uploadedAt: new Date(result.data.uploaded_at).toISOString().split('T')[0],
-            status: result.data.status as 'processing' | 'ready' | 'error'
-          };
-          setFiles(prev => [...prev, newFile]);
-        } else {
-          alert(`فشل في رفع الملف ${file.name}`);
-        }
-      } catch (error) {
-        console.error('Error uploading file:', error);
-        alert(`فشل في رفع الملف ${file.name}`);
-      }
+    if (!uploadedFiles || uploadedFiles.length === 0) return;
+    
+    const file = uploadedFiles[0]; // نأخذ أول ملف فقط
+    
+    // التحقق من نوع الملف
+    const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown'];
+    if (!allowedTypes.includes(file.type) && !file.name.endsWith('.md')) {
+      alert(`نوع الملف ${file.name} غير مدعوم`);
+      return;
     }
+    
+    setPendingFile(file);
+    setFileTitle(file.name.replace(/\.[^/.]+$/, '')); // اقتراح اسم الملف بدون الامتداد
+    setShowFileModal(true);
+  };
+  
+  const confirmFileUpload = async () => {
+    if (!pendingFile || !fileTitle.trim() || !user?.agentId) {
+      alert('يرجى إدخال عنوان للملف');
+      return;
+    }
+    
+    setIsUploading(true);
+    setShowFileModal(false);
+    
+    try {
+      // قراءة محتوى الملف
+      const content = await readFileContent(pendingFile);
 
+      // رفع الملف إلى قاعدة البيانات
+      const response = await fetch(`/api/knowledge/${user.agentId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileName: fileTitle.trim(),
+          fileType: pendingFile.name.endsWith('.pdf') ? 'pdf' : pendingFile.name.endsWith('.md') ? 'md' : 'txt',
+          content: content,
+          fileSize: pendingFile.size
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // إضافة الملف للقائمة
+        const newFile: KnowledgeFile = {
+          id: result.data.id,
+          name: result.data.filename,
+          type: result.data.file_type as 'pdf' | 'txt' | 'md',
+          size: formatFileSize(result.data.file_size || 0),
+          uploadedAt: new Date(result.data.uploaded_at).toISOString().split('T')[0],
+          status: result.data.status as 'processing' | 'ready' | 'error'
+        };
+        setFiles(prev => [...prev, newFile]);
+        setPendingFile(null);
+        setFileTitle('');
+      } else {
+        console.error('API response error for file:', pendingFile.name, result);
+        alert(`فشل في رفع الملف ${pendingFile.name}: ${result.error || 'خطأ غير معروف'}`);
+      }
+    } catch (error) {
+      console.error('Error uploading file:', pendingFile.name, error);
+      alert(`فشل في رفع الملف ${pendingFile.name}: ${error instanceof Error ? error.message : 'خطأ في الشبكة'}`);
+    }
+    
     setIsUploading(false);
   };
 
   // دالة لقراءة محتوى الملف
-  const readFileContent = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target?.result as string);
-      reader.onerror = reject;
-      reader.readAsText(file);
-    });
+  const readFileContent = async (file: File): Promise<string> => {
+    if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+      // استخدام API لاستخراج النص من PDF
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        const response = await fetch('/api/extract-pdf', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(result.error || 'فشل في استخراج النص من PDF');
+        }
+        
+        return result.extractedText;
+      } catch (error) {
+        console.error('PDF extraction error:', error);
+        throw new Error(error instanceof Error ? error.message : 'فشل في قراءة ملف PDF');
+      }
+    } else {
+      // قراءة الملفات النصية العادية
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+          const result = e.target?.result as string;
+          resolve(result);
+        };
+        
+        reader.onerror = () => reject(new Error('فشل في قراءة الملف'));
+        reader.readAsText(file, 'UTF-8');
+      });
+    }
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -161,18 +211,27 @@ export default function KnowledgePage() {
     handleFileUpload(e.dataTransfer.files);
   };
 
-  const deleteFile = async (id: string) => {
-    if (!user?.agentId) return;
+  const handleDeleteFile = (fileId: string, fileName: string) => {
+    setFileToDelete(fileId);
+    setFileToDeleteName(fileName);
+    setShowDeleteModal(true);
+  };
+  
+  const confirmDeleteFile = async () => {
+    if (!fileToDelete || !user?.agentId) return;
 
     try {
-      const response = await fetch(`/api/knowledge/${user.agentId}?fileId=${id}`, {
+      const response = await fetch(`/api/knowledge/${user.agentId}?fileId=${fileToDelete}`, {
         method: 'DELETE'
       });
 
       const result = await response.json();
 
       if (result.success) {
-        setFiles(prev => prev.filter(f => f.id !== id));
+        setFiles(prev => prev.filter(f => f.id !== fileToDelete));
+        setShowDeleteModal(false);
+        setFileToDelete(null);
+        setFileToDeleteName('');
       } else {
         alert('فشل في حذف الملف');
       }
@@ -183,7 +242,12 @@ export default function KnowledgePage() {
   };
 
   const addTextContent = async () => {
-    if (!textContent.trim() || !user?.agentId) return;
+    if (!textContent.trim() || !textTitle.trim() || !user?.agentId) {
+      alert('يرجى إدخال العنوان والمحتوى النصي');
+      return;
+    }
+
+    setIsUploading(true);
 
     try {
       // رفع المحتوى النصي إلى قاعدة البيانات
@@ -193,7 +257,7 @@ export default function KnowledgePage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          fileName: 'محتوى نصي.txt',
+          fileName: textTitle.trim(),
           fileType: 'txt',
           content: textContent,
           fileSize: new Blob([textContent]).size
@@ -206,7 +270,7 @@ export default function KnowledgePage() {
         // إضافة الملف للقائمة
         const newFile: KnowledgeFile = {
           id: result.data.id,
-          name: result.data.file_name,
+          name: result.data.filename,
           type: result.data.file_type as 'pdf' | 'txt' | 'md',
           size: formatFileSize(result.data.file_size || 0),
           uploadedAt: new Date(result.data.uploaded_at).toISOString().split('T')[0],
@@ -214,14 +278,18 @@ export default function KnowledgePage() {
         };
         setFiles(prev => [...prev, newFile]);
         setTextContent('');
+        setTextTitle('');
         setShowTextModal(false);
       } else {
-        alert('فشل في حفظ المحتوى النصي');
+        console.error('API response error:', result);
+        alert(`فشل في حفظ المحتوى النصي: ${result.error || 'خطأ غير معروف'}`);
       }
     } catch (error) {
       console.error('Error adding text content:', error);
-      alert('فشل في حفظ المحتوى النصي');
+      alert(`فشل في حفظ المحتوى النصي: ${error instanceof Error ? error.message : 'خطأ في الشبكة'}`);
     }
+
+    setIsUploading(false);
   };
 
   const getFileIcon = (type: string) => {
@@ -392,7 +460,7 @@ export default function KnowledgePage() {
                       </button>
                       
                       <button
-                        onClick={() => deleteFile(file.id)}
+                        onClick={() => handleDeleteFile(file.id, file.name)}
                         className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
                         title="حذف"
                       >
@@ -424,11 +492,28 @@ export default function KnowledgePage() {
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-xl font-bold text-white">إضافة محتوى نصي</h3>
                   <button
-                    onClick={() => setShowTextModal(false)}
+                    onClick={() => {
+                      setShowTextModal(false);
+                      setTextContent('');
+                      setTextTitle('');
+                    }}
                     className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                   >
                     <X className="w-5 h-5 text-gray-400" />
                   </button>
+                </div>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    عنوان المحتوى
+                  </label>
+                  <input
+                    type="text"
+                    value={textTitle}
+                    onChange={(e) => setTextTitle(e.target.value)}
+                    className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                    placeholder="أدخل عنوان المحتوى..."
+                  />
                 </div>
                 
                 <textarea
@@ -441,15 +526,153 @@ export default function KnowledgePage() {
                 <div className="flex gap-4 mt-6">
                   <GlowButton
                     onClick={addTextContent}
-                    disabled={!textContent.trim()}
+                    disabled={!textContent.trim() || !textTitle.trim() || isUploading}
                   >
                     <Plus className="w-4 h-4" />
-                    إضافة المحتوى
+                    {isUploading ? 'جاري الحفظ...' : 'إضافة المحتوى'}
                   </GlowButton>
                   
                   <GlowButton
                     variant="outline"
-                    onClick={() => setShowTextModal(false)}
+                    onClick={() => {
+                      setShowTextModal(false);
+                      setTextContent('');
+                      setTextTitle('');
+                    }}
+                  >
+                    إلغاء
+                  </GlowButton>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* مودال عنوان الملف */}
+        <AnimatePresence>
+          {showFileModal && (
+            <motion.div
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="bg-space-dark border border-white/20 rounded-xl p-6 w-full max-w-md"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-white">عنوان الملف</h3>
+                  <button
+                    onClick={() => {
+                      setShowFileModal(false);
+                      setPendingFile(null);
+                      setFileTitle('');
+                    }}
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
+                </div>
+                
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    عنوان الملف
+                  </label>
+                  <input
+                    type="text"
+                    value={fileTitle}
+                    onChange={(e) => setFileTitle(e.target.value)}
+                    className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                    placeholder="أدخل عنوان الملف..."
+                    autoFocus
+                  />
+                </div>
+                
+                <div className="flex gap-4">
+                  <GlowButton
+                    onClick={confirmFileUpload}
+                    disabled={!fileTitle.trim() || isUploading}
+                  >
+                    <Upload className="w-4 h-4" />
+                    {isUploading ? 'جاري الرفع...' : 'رفع الملف'}
+                  </GlowButton>
+                  
+                  <GlowButton
+                    variant="outline"
+                    onClick={() => {
+                      setShowFileModal(false);
+                      setPendingFile(null);
+                      setFileTitle('');
+                    }}
+                  >
+                    إلغاء
+                  </GlowButton>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* مودال تأكيد الحذف */}
+        <AnimatePresence>
+          {showDeleteModal && (
+            <motion.div
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="bg-space-dark border border-white/20 rounded-xl p-6 w-full max-w-md"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-white">تأكيد الحذف</h3>
+                  <button
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setFileToDelete(null);
+                      setFileToDeleteName('');
+                    }}
+                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
+                </div>
+                
+                <div className="mb-6">
+                  <p className="text-gray-300">
+                    هل أنت متأكد من حذف الملف:
+                  </p>
+                  <p className="text-white font-medium mt-2">
+                    {fileToDeleteName}
+                  </p>
+                  <p className="text-red-400 text-sm mt-2">
+                    لا يمكن التراجع عن هذا الإجراء
+                  </p>
+                </div>
+                
+                <div className="flex gap-4">
+                  <GlowButton
+                    onClick={confirmDeleteFile}
+                    className="bg-red-500 hover:bg-red-600"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    حذف الملف
+                  </GlowButton>
+                  
+                  <GlowButton
+                    variant="outline"
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setFileToDelete(null);
+                      setFileToDeleteName('');
+                    }}
                   >
                     إلغاء
                   </GlowButton>

@@ -393,11 +393,17 @@ export default function ConversationsPage() {
                   <p className="text-gray-400">لا توجد محادثات</p>
                 </div>
               ) : (
-                filteredConversations
-                  .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-                  .map((conversation, index) => (
+                (() => {
+                  // ترتيب المحادثات من الأحدث إلى الأقدم للعرض
+                  const sortedForDisplay = [...filteredConversations].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                  // ترتيب المحادثات من الأقدم إلى الأحدث لحساب الأرقام
+                  const sortedByDate = [...filteredConversations].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                  
+                  return sortedForDisplay.map((conversation, index) => {
+                    const conversationNumber = sortedByDate.findIndex(c => c.id === conversation.id) + 1;
+                    return (
                   <motion.div
-                    key={conversation.id}
+                    key={`conversation-${conversation.id}-${conversation.sessionId}-${index}`}
                     className={`p-4 border-b border-white/5 cursor-pointer transition-all ${
                       selectedConversationId === conversation.id
                         ? 'bg-blue-500/20 border-r-4 border-r-blue-500'
@@ -422,7 +428,7 @@ export default function ConversationsPage() {
                     </div>
                     
                     <div className="text-white font-medium mb-1 truncate">
-                      المحادثة {index + 1}
+                      المحادثة {conversationNumber}
                     </div>
                     
                     <div className="flex items-center gap-4 text-xs text-gray-400">
@@ -436,7 +442,9 @@ export default function ConversationsPage() {
                       </span>
                     </div>
                   </motion.div>
-                ))
+                    );
+                  });
+                })()
               )}
             </div>
           </motion.div>
@@ -492,7 +500,7 @@ export default function ConversationsPage() {
                            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
                            .map((message, index) => (
                              <motion.div
-                               key={message.id || index}
+                               key={`${message.id || 'msg'}-${index}-${message.timestamp}`}
                                className={`flex ${message.message_type === 'user' ? 'justify-end' : 'justify-start'}`}
                                initial={{ opacity: 0, y: 10 }}
                                animate={{ opacity: 1, y: 0 }}
