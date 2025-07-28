@@ -235,12 +235,12 @@ export function VoiceBot({
       mediaRecorder.start();
       setSession(prev => prev ? { ...prev, isListening: true } : null);
       
-      // إيقاف التسجيل بعد صمت (محاكاة)
+      // إيقاف التسجيل بعد صمت قصير (تحسين سرعة الاستجابة)
       setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording') {
           mediaRecorderRef.current.stop();
         }
-      }, 5000);
+      }, 1000); // تقليل الفترة من 5000 إلى 1000 مللي ثانية
       
     } catch (err) {
       setError('فشل في الوصول للميكروفون');

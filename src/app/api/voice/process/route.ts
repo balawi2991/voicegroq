@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { database } from '@/lib/db';
-import { isSessionActive } from '@/lib/session-manager';
 
 // CORS headers
 const corsHeaders = {
@@ -17,36 +16,68 @@ export async function OPTIONS() {
   });
 }
 
-// تحويل الصوت إلى نص باستخدام Gladia API
+// تحويل الصوت إلى نص باستخدام Groq Whisper API
 async function speechToText(audioBlob: Blob): Promise<string> {
   try {
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'audio.wav');
-    formData.append('language', 'ar');
-    formData.append('language_behaviour', 'automatic single language');
+    // التحقق من حجم الملف الصوتي
+    if (audioBlob.size === 0) {
+      console.warn('Empty audio blob received');
+      return 'لم يتم تسجيل أي صوت، يرجى المحاولة مرة أخرى';
+    }
 
-    const response = await fetch('https://api.gladia.io/v2/transcription/', {
+    const formData = new FormData();
+    // تحديد اسم الملف بناءً على نوع MIME
+    let fileName = 'audio.wav';
+    if (audioBlob.type) {
+      if (audioBlob.type.includes('webm')) {
+        fileName = 'audio.webm';
+      } else if (audioBlob.type.includes('mpeg') || audioBlob.type.includes('mp3')) {
+        fileName = 'audio.mp3';
+      }
+    }
+    
+    formData.append('file', audioBlob, fileName);
+    formData.append('model', 'whisper-large-v3-turbo');
+    formData.append('language', 'ar'); // تعيين اللغة العربية كافتراضية
+    
+    console.log(`[STT] قبل الإرسال إلى Groq: ملف صوتي (${audioBlob.size} بايت، نوع: ${audioBlob.type || 'غير معروف'})`);
+    
+    // استخدام Groq Whisper API مع اكتشاف اللغة التلقائي
+    const startTime = Date.now();
+    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
-        'X-Gladia-Key': process.env.GLADIA_API_KEY!,
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY!}`,
       },
       body: formData
     });
+    const responseTime = Date.now() - startTime;
+
+    console.log(`[STT] استجابة Groq: status=${response.status}, time=${responseTime}ms`);
 
     if (!response.ok) {
-      throw new Error(`Gladia API error: ${response.status}`);
+      const errorText = await response.text().catch(() => 'No error details');
+      console.error(`[STT] خطأ في Groq Whisper API: ${response.status}`, errorText);
+      throw new Error(`Groq Whisper API error: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
+    
+    // التحقق من وجود النص في الاستجابة
+    if (!result.text) {
+      console.warn('[STT] لا يوجد نص في استجابة Groq:', result);
+      return 'لم أتمكن من فهم ما قلته';
+    }
+    
+    console.log(`[STT] نتيجة Groq Whisper: ${JSON.stringify(result)}`);
 
-    // Gladia يرجع النص في result.prediction أو result.transcription
-    const transcription = result.prediction?.[0]?.transcription ||
-                         result.transcription ||
-                         'لم أتمكن من فهم ما قلته';
+    // Groq Whisper يرجع النص في result.text
+    const transcription = result.text;
+    console.log(`[STT] النص المستخرج: "${transcription}"`);
 
     return transcription;
   } catch (error) {
-    console.error('Error in speechToText:', error);
+    console.error('[STT] خطأ في تحويل الصوت إلى نص:', error);
     // fallback للمحاكاة في حالة الخطأ
     return 'مرحباً، كيف يمكنني مساعدتك؟';
   }
@@ -54,12 +85,17 @@ async function speechToText(audioBlob: Blob): Promise<string> {
 
 async function processWithAI(text: string, agentId: string, sessionId: string): Promise<string> {
   try {
+    console.log(`[AI] بدء معالجة النص: "${text}" للوكيل: ${agentId}, الجلسة: ${sessionId}`);
+    
     // جلب المعرفة والأسئلة الشائعة
     const { data: faqs } = await database.faqs.getByAgentId(agentId);
     const { data: knowledge } = await database.knowledgeFiles.getByAgentId(agentId);
     
+    console.log(`[AI] تم جلب ${faqs?.length || 0} سؤال شائع و ${knowledge?.length || 0} ملف معرفة`);
+    
     // جلب الرسائل السابقة للجلسة الحالية
     const { data: previousMessages } = await database.conversations.getMessagesBySessionId(sessionId);
+    console.log(`[AI] تم جلب ${previousMessages?.length || 0} رسالة سابقة للجلسة`);
 
     // البحث في الأسئلة الشائعة أولاً
     const activeFaqs = faqs?.filter(faq => faq.is_active) || [];
@@ -69,6 +105,7 @@ async function processWithAI(text: string, agentId: string, sessionId: string): 
     );
 
     if (matchingFaq) {
+      console.log(`[AI] تم العثور على سؤال شائع مطابق: "${matchingFaq.question}"`);
       return matchingFaq.answer;
     }
 
@@ -101,8 +138,11 @@ ${conversationHistory ? `سياق المحادثة السابقة:\n${conversati
 - إذا كان السؤال يتطلب معلومات من المحادثة السابقة، استخدمها في إجابتك
 `;
 
+    console.log(`[AI] قبل الإرسال إلى Gemini: طول النص ${prompt.length} حرف`);
+
     // استدعاء Gemini API
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    const startTime = Date.now();
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -121,18 +161,31 @@ ${conversationHistory ? `سياق المحادثة السابقة:\n${conversati
         }
       })
     });
+    const responseTime = Date.now() - startTime;
+
+    console.log(`[AI] استجابة Gemini: status=${response.status}, time=${responseTime}ms`);
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+      const errorText = await response.text().catch(() => 'No error details');
+      console.error(`[AI] خطأ في Gemini API: ${response.status}`, errorText);
+      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
-    const aiResponse = result.candidates?.[0]?.content?.parts?.[0]?.text ||
+    
+    // التحقق من وجود استجابة صالحة
+    if (!result.candidates || !result.candidates[0] || !result.candidates[0].content || !result.candidates[0].content.parts || !result.candidates[0].content.parts[0]) {
+      console.warn('[AI] استجابة Gemini غير صالحة:', JSON.stringify(result));
+      throw new Error('Invalid Gemini API response structure');
+    }
+    
+    const aiResponse = result.candidates[0].content.parts[0].text ||
                       'عذراً، لم أتمكن من معالجة سؤالك في الوقت الحالي.';
 
+    console.log(`[AI] استجابة Gemini: "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
     return aiResponse;
   } catch (error) {
-    console.error('Error in processWithAI:', error);
+    console.error('[AI] خطأ في معالجة النص بالذكاء الاصطناعي:', error);
     // fallback للإجابات الأساسية
     if (text.includes('ساعات العمل') || text.includes('وقت العمل')) {
       return 'نعمل من الأحد إلى الخميس من 9 صباحاً حتى 6 مساءً بتوقيت الرياض.';
@@ -147,7 +200,11 @@ ${conversationHistory ? `سياق المحادثة السابقة:\n${conversati
 
 async function textToSpeech(text: string, voiceId: string, agentId: string): Promise<string> {
   try {
+    console.log(`[TTS] بدء تحويل النص إلى صوت: طول النص ${text.length} حرف، الصوت: ${voiceId}`);
+    
     // استخدام Groq Streaming TTS API
+    console.log(`[TTS] قبل الإرسال إلى Groq Streaming TTS API`);
+    const startTime = Date.now();
     const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/voice/text-to-speech/stream`, {
       method: 'POST',
       headers: {
@@ -155,10 +212,14 @@ async function textToSpeech(text: string, voiceId: string, agentId: string): Pro
       },
       body: JSON.stringify({ text, voiceId, agentId }),
     });
+    const responseTime = Date.now() - startTime;
+    
+    console.log(`[TTS] استجابة Groq Streaming: status=${response.status}, time=${responseTime}ms`);
 
     if (!response.ok) {
-      console.warn('Groq Streaming failed, falling back to regular TTS');
+      console.warn(`[TTS] فشل Groq Streaming (${response.status}), الرجوع إلى TTS العادي`);
       // Fallback to regular TTS API
+      const fallbackStartTime = Date.now();
       const fallbackResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/voice/text-to-speech`, {
         method: 'POST',
         headers: {
@@ -166,35 +227,45 @@ async function textToSpeech(text: string, voiceId: string, agentId: string): Pro
         },
         body: JSON.stringify({ text, voiceId, agentId }),
       });
+      const fallbackResponseTime = Date.now() - fallbackStartTime;
+      
+      console.log(`[TTS] استجابة TTS العادي: status=${fallbackResponse.status}, time=${fallbackResponseTime}ms`);
 
       if (!fallbackResponse.ok) {
-        throw new Error(`Fallback TTS API error: ${fallbackResponse.status}`);
+        const errorText = await fallbackResponse.text().catch(() => 'No error details');
+        console.error(`[TTS] خطأ في TTS العادي: ${fallbackResponse.status}`, errorText);
+        throw new Error(`Fallback TTS API error: ${fallbackResponse.status} - ${errorText}`);
       }
 
       const fallbackResult = await fallbackResponse.json();
       
       if (!fallbackResult.success || !fallbackResult.data.audioData) {
+        console.error('[TTS] بيانات صوتية غير صالحة من TTS العادي:', fallbackResult);
         throw new Error('Invalid audio data from fallback TTS API');
       }
 
       // إرجاع البيانات الصوتية بصيغة data URL
       const audioData = fallbackResult.data.audioData;
+      console.log(`[TTS] تم الحصول على بيانات صوتية من TTS العادي: نوع=${audioData.mimeType}, حجم=${audioData.data.length} حرف`);
       return `data:${audioData.mimeType};base64,${audioData.data}`;
     }
 
     // تحويل الاستجابة المتدفقة إلى blob
     const audioBlob = await response.blob();
+    console.log(`[TTS] تم الحصول على blob من Groq Streaming: حجم=${audioBlob.size} بايت، نوع=${audioBlob.type || 'غير معروف'}`);
     
-    // تحويل blob إلى data URL
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(audioBlob);
-    });
+    // تحويل blob إلى data URL في بيئة Node.js
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString('base64');
+    const mimeType = audioBlob.type || 'audio/mpeg';
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+    console.log(`[TTS] تم تحويل blob إلى data URL بنجاح`);
+    return dataUrl;
   } catch (error) {
-    console.error('Error in TTS:', error);
+    console.error('[TTS] خطأ في تحويل النص إلى صوت:', error);
     // fallback للمحاكاة
+    console.log('[TTS] استخدام fallback للمحاكاة');
     return `data:audio/mp3;base64,${Buffer.from(text).toString('base64')}`;
   }
 }
@@ -213,114 +284,128 @@ function getOpenAIVoiceName(voiceId: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const audioFile = formData.get('audio') as File;
-    const sessionId = formData.get('sessionId') as string;
-    const agentId = formData.get('agentId') as string;
-
-    if (!audioFile || !sessionId || !agentId) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { 
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json; charset=utf-8',
-          },
-        }
-      );
+    console.log('[API] بدء معالجة طلب الصوت');
+    
+    // محاولة تحليل FormData مع معالجة الأخطاء
+    let formData;
+    try {
+      formData = await request.formData();
+      console.log('[API] تم تحليل FormData بنجاح');
+    } catch (formError: any) {
+      console.error('[API] خطأ في تحليل FormData:', formError.message);
+      return Response.json({ 
+        success: false, 
+        error: 'Invalid form data format', 
+        details: formError.message 
+      }, { status: 400 });
     }
 
-    // التحقق من انتهاء مدة الجلسة
-    if (!isSessionActive(sessionId)) {
-      return NextResponse.json(
-        { 
-          error: 'Session expired',
-          message: 'انتهت مدة الجلسة المسموحة للمكالمة',
-          sessionExpired: true
-        },
-        { 
-          status: 410, // Gone - الجلسة منتهية
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json; charset=utf-8',
-          },
-        }
-      );
+    // التحقق من الحقول المطلوبة
+    const audioFile = formData.get('audio') as File;
+    const sessionId = formData.get('sessionId') as string;
+    const voiceId = formData.get('voiceId') as string;
+    const agentId = formData.get('agentId') as string;
+    const userId = formData.get('userId') as string;
+
+    console.log(`[API] معلومات الطلب: sessionId=${sessionId}, voiceId=${voiceId}, agentId=${agentId}, userId=${userId}`);
+    console.log(`[API] معلومات الملف الصوتي: اسم=${audioFile?.name || 'غير متوفر'}, حجم=${audioFile?.size || 0} بايت, نوع=${audioFile?.type || 'غير معروف'}`);
+
+    if (!audioFile || !sessionId || !voiceId || !agentId) {
+      console.error('[API] حقول مفقودة في الطلب:', { 
+        audioFile: !!audioFile, 
+        sessionId: !!sessionId, 
+        voiceId: !!voiceId, 
+        agentId: !!agentId, 
+        userId: !!userId 
+      });
+      return Response.json({ success: false, error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // التحقق من انتهاء الجلسة
+    const { data: messages } = await database.conversations.getMessagesBySessionId(sessionId);
+    const { data: conversations } = await database.conversations.getByAgentId(agentId);
+    const session = conversations.find(conv => conv.session_id === sessionId);
+
+    if (!session) {
+      console.error(`[API] الجلسة غير موجودة: ${sessionId}`);
+      return Response.json({ success: false, error: 'Session not found' }, { status: 404 });
+    }
+
+    if (session.ended_at) {
+      console.error(`[API] الجلسة منتهية: ${sessionId}`);
+      return Response.json({ success: false, error: 'Session has ended' }, { status: 400 });
     }
 
     // جلب تكوين البوت
-    const { data: config } = await database.botConfigs.getByAgentId(agentId);
-    if (!config) {
-      return NextResponse.json(
-        { error: 'Bot configuration not found' },
-        { 
-          status: 404,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json; charset=utf-8',
-          },
-        }
-      );
+    console.log(`[API] جلب تكوين البوت للوكيل: ${agentId}`);
+    const { data: botConfig } = await database.botConfigs.getByAgentId(agentId);
+
+    if (!botConfig) {
+      console.error(`[API] تكوين البوت غير موجود للوكيل: ${agentId}`);
+      return Response.json({ success: false, error: 'Bot configuration not found' }, { status: 404 });
     }
 
-    // 1. تحويل الصوت إلى نص
-    const audioBlob = new Blob([await audioFile.arrayBuffer()]);
-    const userText = await speechToText(audioBlob);
+    // تحويل الصوت إلى نص
+    console.log('[API] بدء تحويل الصوت إلى نص');
+    const transcriptResult = await speechToText(audioFile);
+    console.log(`[API] نتيجة تحويل الصوت إلى نص: ${transcriptResult.length} حرف`);
 
-    // 2. معالجة النص بالذكاء الاصطناعي مع السياق السابق
-    const botResponse = await processWithAI(userText, agentId, sessionId);
+    // معالجة النص بالذكاء الاصطناعي
+    console.log('[API] بدء معالجة النص بالذكاء الاصطناعي');
+    const aiResponse = await processWithAI(transcriptResult, agentId, sessionId);
+    console.log(`[API] نتيجة معالجة الذكاء الاصطناعي: ${aiResponse.length} حرف`);
 
-    // 3. تحويل الرد إلى صوت باستخدام Groq Streaming
-    const audioUrl = await textToSpeech(botResponse, config.voice_id, agentId);
+    // تحويل الرد إلى صوت
+    console.log('[API] بدء تحويل الرد إلى صوت');
+    const audioData = await textToSpeech(aiResponse, voiceId, agentId);
+    console.log('[API] تم الحصول على البيانات الصوتية بنجاح');
 
-    // 4. حفظ الرسائل في قاعدة البيانات
+    // حفظ الرسائل في قاعدة البيانات
+    console.log('[API] حفظ الرسائل في قاعدة البيانات');
     await database.conversations.addMessage({
       session_id: sessionId,
       message_type: 'user',
-      content: userText,
+      content: transcriptResult,
       timestamp: new Date().toISOString(),
     });
-
+    
     await database.conversations.addMessage({
       session_id: sessionId,
       message_type: 'bot',
-      content: botResponse,
+      content: aiResponse,
       timestamp: new Date().toISOString(),
     });
 
-    // تحديث عداد الرسائل في جدول المحادثات
-    const { data: currentMessages } = await database.conversations.getMessagesBySessionId(sessionId);
-    const messageCount = currentMessages?.length || 0;
-    
-    await database.conversations.updateMessageCount(sessionId, messageCount);
+    // تم حفظ الرسائل بنجاح
+    console.log('[API] تم حفظ الرسائل بنجاح');
 
-    return NextResponse.json({
+    console.log('[API] اكتمال معالجة طلب الصوت بنجاح');
+    return Response.json({
       success: true,
       data: {
-        sessionId,
-        userText,
-        botResponse,
-        audioUrl,
-      }
-    }, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json; charset=utf-8',
+        transcript: transcriptResult,
+        response: aiResponse,
+        audioData,
       },
     });
-
-  } catch (error) {
-    console.error('Voice processing error:', error);
-    return NextResponse.json(
-      { error: 'Failed to process voice input' },
+  } catch (error: any) {
+    console.error('[API] خطأ في معالجة طلب الصوت:', error);
+    // تسجيل تفاصيل الخطأ
+    const errorDetails = {
+      message: error.message || 'Unknown error',
+      stack: error.stack || 'No stack trace',
+      name: error.name || 'Error',
+      cause: error.cause || 'Unknown cause',
+    };
+    console.error('[API] تفاصيل الخطأ:', JSON.stringify(errorDetails, null, 2));
+    
+    return Response.json(
       { 
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json; charset=utf-8',
-        },
-      }
+        success: false, 
+        error: error.message || 'An error occurred during voice processing',
+        details: process.env.NODE_ENV === 'development' ? errorDetails : undefined
+      }, 
+      { status: 500 }
     );
   }
 }

@@ -114,7 +114,7 @@ async function handleSessionTimeout(sessionId: string): Promise<void> {
 
   try {
     // إنهاء الجلسة في قاعدة البيانات
-    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/voice/end`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3001'}/api/voice/end`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

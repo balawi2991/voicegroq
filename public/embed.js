@@ -86,6 +86,9 @@
       this.audioChunks = [];
       this.sessionId = null;
       this.configUpdateInterval = null;
+      this.recordingInterval = null;
+      this.isPlayingWelcome = false;
+      this.isProcessingAudio = false;
 
       this.init();
     }
@@ -638,7 +641,10 @@
         };
 
         this.mediaRecorder.onstop = () => {
-          this.processAudio();
+          // فقط معالجة الصوت إذا لم نكن في حالة تشغيل رسالة الترحيب
+          if (this.widgetState === 'connected' && !this.isPlayingWelcome) {
+            this.processAudio();
+          }
         };
 
         // بدء التسجيل
@@ -662,6 +668,8 @@
     }
 
     async playWelcomeMessage() {
+      this.isPlayingWelcome = true;
+      
       try {
         // تحديث التكوين أولاً للحصول على أحدث رسالة ترحيب
         console.log('🔄 تحديث التكوين قبل تشغيل رسالة الترحيب...');
@@ -671,6 +679,7 @@
         const welcomeText = this.botConfig?.welcomeMessage;
         if (!welcomeText || !welcomeText.trim()) {
           console.log('❌ لا توجد رسالة ترحيب مكونة - تغيير الحالة مباشرة');
+          this.isPlayingWelcome = false;
           this.updateWidgetState('connected');
           this.startCallTimer();
           return;
@@ -693,6 +702,10 @@
           // تم إزالة Web Speech API - لا يتم تشغيل الصوت في المتصفح
           console.log('تم تعطيل تشغيل الصوت في المتصفح - لن يتم تشغيل رسالة الترحيب صوتياً');
         }
+        
+        // انتهاء تشغيل رسالة الترحيب
+        this.isPlayingWelcome = false;
+        console.log('✅ Welcome message finished playing');
       } catch (error) {
         console.error('💥 خطأ عام في تشغيل رسالة الترحيب:', {
           error: error,
@@ -705,6 +718,7 @@
         });
         console.log('⏳ تغيير الحالة رغم الخطأ العام');
         // تغيير الحالة حتى في حالة الخطأ
+        this.isPlayingWelcome = false;
         this.updateWidgetState('connected');
         this.startCallTimer();
       }
@@ -922,23 +936,26 @@
     }
 
     startRecordingLoop() {
-      // إيقاف التسجيل كل 3 ثوان ومعالجة الصوت
+      // إيقاف التسجيل كل ثانية واحدة ومعالجة الصوت (تحسين سرعة الاستجابة)
       this.recordingInterval = setInterval(() => {
-        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+        if (this.mediaRecorder && this.mediaRecorder.state === 'recording' && 
+            this.widgetState === 'connected' && !this.isPlayingWelcome && !this.isProcessingAudio) {
           this.mediaRecorder.stop();
           setTimeout(() => {
-            if (this.mediaRecorder && this.widgetState === 'connected') {
+            if (this.mediaRecorder && this.widgetState === 'connected' && !this.isPlayingWelcome) {
               this.audioChunks = [];
               this.mediaRecorder.start();
             }
           }, 500);
         }
-      }, 3000);
+      }, 1000); // تقليل الفترة من 3000 إلى 1000 مللي ثانية
     }
 
     async processAudio() {
-      if (this.audioChunks.length === 0) return;
+      if (this.audioChunks.length === 0 || this.isProcessingAudio || this.isPlayingWelcome) return;
 
+      this.isProcessingAudio = true;
+      
       try {
         // تحويل الصوت إلى blob
         const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
@@ -958,17 +975,25 @@
         const result = await response.json();
 
         if (result.success) {
+          // إيقاف التسجيل أثناء تشغيل الرد
+          this.pauseRecording();
+          
           // تشغيل الرد الصوتي
-          await this.playAudioResponse(result.data.audioUrl);
+          await this.playAudioResponse(result.data.audioData);
+          
+          // استئناف التسجيل بعد انتهاء الرد
+          this.resumeRecording();
 
           // إرسال حدث للتحليلات
           this.trackEvent('message_processed', {
-            userText: result.data.userText,
-            botResponse: result.data.botResponse
+            userText: result.data.transcript,
+            botResponse: result.data.response
           });
         }
       } catch (error) {
         console.error('Error processing audio:', error);
+      } finally {
+        this.isProcessingAudio = false;
       }
     }
 
@@ -1124,11 +1149,30 @@
       this.trackEvent('call_ended');
     }
 
+    pauseRecording() {
+      if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+        this.mediaRecorder.pause();
+      }
+      if (this.recordingInterval) {
+        clearInterval(this.recordingInterval);
+        this.recordingInterval = null;
+      }
+    }
+
+    resumeRecording() {
+      if (this.mediaRecorder && this.mediaRecorder.state === 'paused') {
+        this.mediaRecorder.resume();
+      }
+      this.startRecordingLoop();
+    }
+
     resetWidget() {
       this.widgetState = 'idle';
       this.callDuration = 0;
       this.sessionId = null;
       this.audioChunks = [];
+      this.isPlayingWelcome = false;
+      this.isProcessingAudio = false;
 
       if (this.callTimer) {
         clearInterval(this.callTimer);
