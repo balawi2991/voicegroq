@@ -117,72 +117,78 @@ async function processWithAI(text: string, agentId: string, sessionId: string): 
       `${msg.message_type === 'user' ? 'المستخدم' : 'المساعد'}: ${msg.content}`
     ).join('\n') || '';
 
-    // إعداد prompt لـ Gemini مع السياق الكامل
-    const prompt = `
-أنت مساعد ذكي مفيد. استخدم المعلومات التالية للإجابة على السؤال:
+    // إعداد الرسائل لـ Groq Chat Completions API
+    const messages = [
+      {
+        role: 'system',
+        content: `أنت مساعد ذكي ومفيد. يجب أن تجيب على الأسئلة بطريقة واضحة ومفيدة باللغة العربية. استخدم المعلومات التالية للإجابة على الأسئلة:
 
-المعرفة المتاحة:
-${knowledgeContext}
-
-الأسئلة الشائعة:
-${activeFaqs.map(faq => `س: ${faq.question}\nج: ${faq.answer}`).join('\n\n')}
-
-${conversationHistory ? `سياق المحادثة السابقة:\n${conversationHistory}\n\n` : ''}السؤال الحالي: ${text}
-
-تعليمات:
+${knowledgeContext ? `المعرفة المتاحة:\n${knowledgeContext}\n\n` : ''}${activeFaqs.length > 0 ? `الأسئلة الشائعة:\n${activeFaqs.map(faq => `س: ${faq.question}\nج: ${faq.answer}`).join('\n\n')}\n\n` : ''}تعليمات:
 - أجب باللغة العربية
 - كن مفيداً ومهذباً
 - استخدم سياق المحادثة السابقة لفهم السؤال بشكل أفضل
-- إذا لم تجد إجابة في المعرفة المتاحة، قل ذلك بوضوح
+- إذا لم تجد إجابة في المعلومات المتوفرة، قل ذلك بوضوح
 - اجعل إجابتك مختصرة ومفيدة
-- إذا كان السؤال يتطلب معلومات من المحادثة السابقة، استخدمها في إجابتك
-`;
+- إذا كان السؤال يتطلب معلومات من المحادثة السابقة، استخدمها في إجابتك`
+      }
+    ];
 
-    console.log(`[AI] قبل الإرسال إلى Gemini: طول النص ${prompt.length} حرف`);
+    // إضافة سياق المحادثة السابقة
+    if (conversationHistory) {
+      previousMessages?.forEach(msg => {
+        messages.push({
+          role: msg.message_type === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        });
+      });
+    }
 
-    // استدعاء Gemini API
+    // إضافة السؤال الحالي
+    messages.push({
+      role: 'user',
+      content: text
+    });
+
+    console.log(`[AI] قبل الإرسال إلى Groq: ${messages.length} رسالة`);
+
+    // استدعاء Groq Chat Completions API
     const startTime = Date.now();
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        }
+        model: 'llama3-70b-8192',
+        messages: messages,
+        temperature: 0.7,
+        max_tokens: 1024,
+        top_p: 0.95
       })
     });
     const responseTime = Date.now() - startTime;
 
-    console.log(`[AI] استجابة Gemini: status=${response.status}, time=${responseTime}ms`);
+    console.log(`[AI] استجابة Groq: status=${response.status}, time=${responseTime}ms`);
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'No error details');
-      console.error(`[AI] خطأ في Gemini API: ${response.status}`, errorText);
-      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+      console.error(`[AI] خطأ في Groq API: ${response.status}`, errorText);
+      throw new Error(`Groq API error: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
     
     // التحقق من وجود استجابة صالحة
-    if (!result.candidates || !result.candidates[0] || !result.candidates[0].content || !result.candidates[0].content.parts || !result.candidates[0].content.parts[0]) {
-      console.warn('[AI] استجابة Gemini غير صالحة:', JSON.stringify(result));
-      throw new Error('Invalid Gemini API response structure');
+    if (!result.choices || !result.choices[0] || !result.choices[0].message || !result.choices[0].message.content) {
+      console.warn('[AI] استجابة Groq غير صالحة:', JSON.stringify(result));
+      throw new Error('Invalid Groq API response structure');
     }
     
-    const aiResponse = result.candidates[0].content.parts[0].text ||
-                      'عذراً، لم أتمكن من معالجة سؤالك في الوقت الحالي.';
+    const aiResponse = result.choices[0].message.content ||
+                      'عذراً، ما قدرت أعالج سؤالك في الوقت الحالي.';
 
-    console.log(`[AI] استجابة Gemini: "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
+    console.log(`[AI] استجابة Groq: "${aiResponse.substring(0, 100)}${aiResponse.length > 100 ? '...' : ''}"`);
     return aiResponse;
   } catch (error) {
     console.error('[AI] خطأ في معالجة النص بالذكاء الاصطناعي:', error);

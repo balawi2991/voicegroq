@@ -21,7 +21,7 @@
 - **bcryptjs** - تشفير كلمات المرور
 
 ### AI & Voice Processing
-- **Google Gemini AI** - معالجة اللغة الطبيعية والذكاء الاصطناعي
+- **Groq** - معالجة اللغة الطبيعية والذكاء الاصطناعي بسرعة فائقة
 - **Gladia API** - تحويل الكلام إلى نص (Speech-to-Text)
 - **Groq TTS API** - تحويل النص إلى كلام (Text-to-Speech)
 - **Web Audio API** - معالجة الصوت في المتصفح
@@ -87,7 +87,7 @@ User → Login/Signup → API Auth → Database → Session → Dashboard
 
 ### 2. معالجة الصوت
 ```
-User Voice → Gladia API → Text → Gemini AI → Response → Groq TTS → Audio Stream
+User Voice → Gladia API → Text → Groq API → Response → Groq TTS → Audio Stream
 ```
 
 ### 3. إدارة المعرفة
@@ -111,9 +111,9 @@ User Upload → File Processing → Database Storage → RAG Integration → AI 
 - **الغرض**: تحويل الكلام إلى نص
 - **الاستخدام**: معالجة إدخال المستخدم الصوتي
 
-### 2. Google Gemini AI
+### 2. Groq API
 - **الغرض**: معالجة اللغة الطبيعية والذكاء الاصطناعي
-- **الاستخدام**: فهم الاستفسارات وتوليد الردود
+- **الاستخدام**: فهم الاستفسارات وتوليد الردود بسرعة فائقة
 
 ### 3. Groq TTS API
 - **الغرض**: تحويل النص إلى كلام

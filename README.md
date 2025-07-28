@@ -49,7 +49,7 @@
 
 ### AI & Voice Processing
 - **Gladia API** - تحويل الصوت إلى نص
-- **Google Gemini LLM** - معالجة اللغة الطبيعية والذكاء الاصطناعي
+- **Groq LLM** - معالجة اللغة الطبيعية والذكاء الاصطناعي بسرعة فائقة
 - **Groq TTS** - تحويل النص إلى صوت بجودة عالية باستخدام playai-tts-arabic (نشط حالياً)
 - **OpenAI TTS (tts-1-hd)** - تحويل النص إلى صوت فائق الجودة (معطل مؤقتاً)
 
@@ -81,8 +81,8 @@ DATABASE_URL=your_neon_database_url
 GLADIA_API_KEY=your_gladia_key
 
 # AI & TTS
-# Google Gemini AI (for natural language processing)
-GEMINI_API_KEY=your_gemini_api_key
+# Groq AI (for natural language processing)
+GROQ_API_KEY=your_groq_api_key
 
 # Groq TTS (currently active for text-to-speech)
 GROQ_API_KEY=your_groq_api_key
